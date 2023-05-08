@@ -1,2 +1,2 @@
-# python_4bit_cpu
-Experimental 4-Bit CPU using python 
+# python_8bit_cpu
+Experimental 8-Bit CPU using python 
