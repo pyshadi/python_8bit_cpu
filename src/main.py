@@ -3,7 +3,7 @@ from memory import ROM, RAM
 from registers import Registers
 
 
-def test_cpu_random_numbers():
+def test_cpu():
     source = [
         0x04, 0x01,  # mvi a, 0x01
         0x05, 0x02,  # mvi b, 0x02
@@ -34,4 +34,4 @@ def test_cpu_random_numbers():
     print(cpu.ram.read(0x10))
 
 if __name__ == "__main__":
-    test_cpu_random_numbers()
+    test_cpu()
