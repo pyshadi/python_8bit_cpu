@@ -12,6 +12,14 @@ class ALU:
     def sub(self, a, b):
         return (a - b) & self.mask
 
+    def mul(self, a, b):
+        return (a * b) & self.mask
+    def div(self, a, b):
+        if b !=0:
+            return (a / b) & self.mask
+        else:
+            return (0 & self.mask)
+
     def and_(self, a, b):
         return a & b
 
@@ -24,11 +32,11 @@ class ALU:
     def not_(self, a):
         return (~a) & self.mask
 
-    def shift_left(self, a):
-        return (a << 1) & self.mask
+    def shift_left(self, a, n):
+        return (a << n) & self.mask
 
-    def shift_right(self, a):
-        return (a >> 1) & self.mask
+    def shift_right(self, a, n):
+        return (a >> n) & self.mask
 
     def arithmetic_shift_right(self, a):
         sign_bit = a & (1 << (self.mask.bit_length() - 1))
@@ -61,6 +69,8 @@ class CPU:
         self.decoder = Decoder(self)
         self.halted = False
 
+        self.registers.write(Registers.SP, self.ram.size - 1)
+
     def fetch_word(self):
         # Fetch a 16-bit value as two consecutive 8-bit values from memory
         low_byte = self.fetch()
@@ -72,10 +82,20 @@ class CPU:
         # Fetch an 8-bit value from memory
         return self.fetch()
 
+    def fetch_address(self):
+        """
+        Fetch a 8-bit address from RAM.
+        """
+        pc = self.registers.read(Registers.PC)
+        address = self.ram.read(pc)
+        self.registers.write(Registers.PC, pc+1)
+        return address
     def fetch(self):
-        pc = self.registers.registers[Registers.PC]
+        pc = self.registers.read(Registers.PC)
+        print('pc in fetch', pc)
+        print('sp in fetch', self.registers.read(Registers.SP))
         opcode = self.rom.read(pc)
-        self.registers.registers[Registers.PC] += 1
+        self.registers.write(Registers.PC, pc+1)
         return opcode
 
     def decode(self, opcode):
@@ -88,6 +108,6 @@ class CPU:
     def run(self):
         pc = self.registers.registers[Registers.PC]
         opcode = self.fetch()
-        print(f"Executing opcode: {opcode:02x} at address: {pc:02x}")  # Add this line
+        #print(f"Executing opcode: {opcode:02x} at address: {pc:02x}")  # Add this line
         instruction = self.decoder.decode(opcode)
         self.execute(instruction)

@@ -1,26 +1,27 @@
 from cpu import CPU
 from memory import ROM, RAM
 from registers import Registers
-
+from assembler import Assembler
 
 def test_cpu():
     source = [
-        0x04, 0x01,  # mvi a, 0x01
-        0x05, 0x02,  # mvi b, 0x02
-        0x06, 0x03,  # mvi c, 0x03
-        0x07, 0x04,  # mvi d, 0x04
-        0x10,  # add a, b
-        0x11,  # add a, c
-        0x12,  # add a, d
-        0x0c, 0x10, # store a, (0x10)
-        0x08, 0x10,  # load a, (0x10)
-        0xff  # hlt
+        0x02, 0, 1000,       # Move immediate value 2 into A
+        0x04, 0x00, 0x10,
+        0x12, 0x00,
+        0x28, 0x00, 0x06,
+        0xff,                      # Halt the program#
     ]
 
-
-
-    rom = ROM(len(source), source)
-    ram = RAM(512)
+    source = '''
+        mvi, A, 10,
+        loop:,
+        dec, A,
+        jnz, A, loop,
+        hlt,
+    '''
+    code = Assembler.assemble(source)
+    rom = ROM(len(code), code)
+    ram = RAM(64, bit_width=8)
     cpu = CPU(rom, ram, bit_width=8)
 
     # Run the test program
