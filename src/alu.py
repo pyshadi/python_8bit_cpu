@@ -19,7 +19,6 @@ class ALU:
             self.set_flag(0x02)  # set carry flag
         return result
 
-
     def sub(self, a, b):
         result = a - b
         borrow_flag = result < 0

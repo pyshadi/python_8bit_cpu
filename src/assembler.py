@@ -19,10 +19,16 @@ class Assembler:
         'D': 0x03,
         'E': 0x04,
         'F': 0x05,
-        'X': 0x06,
-        'Y': 0x07,
-        'SP': 0x08,
-        'PC': 0x09,
+        'G': 0x06,
+        'H': 0x07,
+        'I': 0x08,
+        'J': 0x09,
+        'K': 0x0a,
+        'L': 0x0b,
+        'X': 0x0c,
+        'Y': 0x0d,
+        'SP': 0x0e,
+        'PC': 0x0f,
         # ... and so on for the rest of your registers
     }
 

@@ -47,7 +47,6 @@ class CPU:
     def execute(self, instruction):
         instruction()
 
-
     def run(self):
         pc = self.registers.registers[Registers.PC]
         opcode = self.fetch()

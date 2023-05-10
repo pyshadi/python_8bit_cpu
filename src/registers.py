@@ -1,9 +1,8 @@
-
 class Registers:
     # Constants for register indices
-    A, B, C, D, E, F, X, Y, SP, PC = range(10)
+    A, B, C, D, E, F, G, H, I, J, K, L, X, Y, SP, PC = range(16)
 
-    def __init__(self, num_registers=10):
+    def __init__(self, num_registers=16):
         self.registers = [0] * num_registers
         self.num_registers = num_registers
 
