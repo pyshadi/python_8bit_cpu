@@ -1,6 +1,5 @@
 from cpu import CPU
 from memory import ROM, RAM
-from registers import Registers
 from assembler import Assembler
 
 def test_cpu():
@@ -13,26 +12,25 @@ def test_cpu():
     ]
 
     source = '''
-        mvi, A, 10,
-        loop:,
-        dec, A,
-        jnz, A, loop,
-        hlt,
-    '''
+         mvi, A, 1000,
+         loop:,
+         dec, A,
+         jnz, A, loop,
+         hlt,
+     '''
     code = Assembler.assemble(source)
     rom = ROM(len(code), code)
     ram = RAM(64, bit_width=8)
     cpu = CPU(rom, ram, bit_width=8)
 
-    # Run the test program
     while not cpu.halted:
         cpu.run()
-
 
     print("Register values:")
     for i, reg in enumerate(cpu.registers.registers):
         print(f"R{i}: {reg}")
-    print(cpu.ram.read(0x10))
+
+    # print(cpu.ram.read(0x10))
 
 if __name__ == "__main__":
     test_cpu()

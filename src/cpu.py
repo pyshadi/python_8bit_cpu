@@ -92,8 +92,8 @@ class CPU:
         return address
     def fetch(self):
         pc = self.registers.read(Registers.PC)
-        print('pc in fetch', pc)
-        print('sp in fetch', self.registers.read(Registers.SP))
+        # print('pc in fetch', pc)
+        # print('sp in fetch', self.registers.read(Registers.SP))
         opcode = self.rom.read(pc)
         self.registers.write(Registers.PC, pc+1)
         return opcode
