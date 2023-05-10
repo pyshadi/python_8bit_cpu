@@ -84,8 +84,6 @@ Finally, the method returns the bytecode list, which can be loaded into the comp
 | DIV | 0x0E | reg, reg| Divide a register by data in another register and put result in the accumulator |
 | DIVI | 0x0F | D, imm | Divide Destination register by immediate data |
 | DIVA | 0x10 | D, mem | Divide Destination register by data in memory |
-
-
 | INC | 0x11 | D | Increment the value of Destination register |
 | DEC | 0x12 | D | Decrement the value of Destination register |
 | ANDD | 0x13 | reg, reg | Bitwise AND a register with data from another register and put result in the accumulator |
