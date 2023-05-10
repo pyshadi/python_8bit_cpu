@@ -95,8 +95,30 @@ Finally, the method returns the bytecode list, which can be loaded into the comp
 | XORD | 0x19 | reg, reg | Bitwise XOR a register with data from another register and put result in the accumulator |
 | XORI | 0x1A | D, imm | Bitwise XOR Destination register with immediate data |
 | XORA | 0x1B | D, mem | Bitwise XOR Destination register with data from memory |
-| RTL | 0x1C | D | Rotate Destination register left|
-| RTR | 0x1D | D | Rotate Destination register right|
+| RTL | 0x1C | D | Rotate Destination register left |
+| RTR | 0x1D | D | Rotate Destination register right |
+| SHL | 0x1E | D | Shift Destination register left |
+| SHR | 0x1F | D | Shift Destination register right |
+| CMP | 0x20 | reg, reg| Compare data in a register or memory location with the accumulator |
+| CMPI | 0x21 | reg, imm | Compare immediate data with the register |
+| CMPA | 0x22 | reg, mem | Compare memory data with |
+| JMP | 0x23 | mem | Jump to a memory location |
+| JC | 0x24 | mem | Jump to a memory location if the carry flag is set |
+| JNC | 0x25 | mem | Jump to a memory location if the carry flag is not set |
+| JE | 0x26 | reg, imm | Jump to a memory location if register data is equal to immediate value |
+| JZ | 0x27 | reg, mem | Jump to a memory location if register data is equal to immediate value |
+| JNZ | 0x28 | reg, mem | Jump to a memory location if register data is not equal to immediate value |
+| JA | 0x29 | reg, mem | Jump to a memory location if register data is greater than immediate value |
+| JAE | 0x30 | reg, mem | Jump to a memory location if register data is greater than or equal to immediate value |
+| JB | 0x31 | mem | Jump to a memory location if register data is smaller than immediate value |
+| JBE | 0x32 | mem | Jump to a memory location if register data is smaller than or equal to immediate value |
+| PUSH | 0x33 | reg | Push data from a register onto the stack |
+| PUSHI | 0x34 | imm | Push immediate data onto the stack |
+| PUSHA | 0x35 | None | Push memory address onto the stack |
+| POP | 0x36 | reg | Pop data from the stack into a register |
+| CALL | 0x37 | mem | Call a subroutine at a memory location |
+| RET | 0x38 | None | Return from a subroutine |
+| HLT | 0xFF | None | Halt the CPU |
 
 ## Testing
 The test_cpu function sets up a simple test program and runs it on the simulated CPU. The program counts down from 10 and then halts. After the program finishes running, the function prints out the values of the CPU's registers and the contents of memory address 0x10.<br>
