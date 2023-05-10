@@ -3,8 +3,6 @@
 This is a simple CPU simulator, which emulates the behavior of a computer's CPU. <br>
 The CPU is programmed with a specific set of instructions that it can execute, and it fetches those instructions from memory as it runs.<br>
 
-The repo has the following components:<br>
-
 ## cpu.py
 
 ### ALU
@@ -68,10 +66,18 @@ Finally, the method returns the bytecode list, which can be loaded into the comp
 | Mnemonic | Opcode | Operands | Description |
 | --- | --- | --- | --- |
 | NOP | 0x00 | None | No operation |
-| MOV | 0x01 | D, S | Move data from one Source register to Destination register |
+
+### Data Transfer Instructions
+| Mnemonic | Opcode | Operands | Description |
+| --- | --- | --- | --- |
+| MOV | 0x01 | D, S | Move data from Source register to Destination register |
 | MVI | 0x02 | D, imm | Move immediate data into Destination register |
 | LD | 0x03 | D, mem | Load data from memory into Destination register |
 | ST | 0x04 | S, mem | Store data from Source register into memory |
+
+### Arithmetic and Logical Instructions
+| Mnemonic | Opcode | Operands | Description |
+| --- | --- | --- | --- |
 | ADD | 0x05 | reg, reg | Add data from a register to another and put result in the accumulator|
 | ADDI | 0x06 |  D, imm | Add immediate data to  Destination register |
 | ADDA | 0x07 | D, mem | Add data from memory to  Destination register |
@@ -99,6 +105,10 @@ Finally, the method returns the bytecode list, which can be loaded into the comp
 | RTR | 0x1D | D | Rotate Destination register right |
 | SHL | 0x1E | D | Shift Destination register left |
 | SHR | 0x1F | D | Shift Destination register right |
+
+### Control Transfer Instructions
+| Mnemonic | Opcode | Operands | Description |
+| --- | --- | --- | --- |
 | CMP | 0x20 | reg, reg| Compare data in a register or memory location with the accumulator |
 | CMPI | 0x21 | reg, imm | Compare immediate data with the register |
 | CMPA | 0x22 | reg, mem | Compare memory data with |
@@ -119,6 +129,16 @@ Finally, the method returns the bytecode list, which can be loaded into the comp
 | CALL | 0x37 | mem | Call a subroutine at a memory location |
 | RET | 0x38 | None | Return from a subroutine |
 | HLT | 0xFF | None | Halt the CPU |
+
+## Example assembly program: <br>
+<code>          
+mvi, A, 1000,<br>
+loop:,<br>
+dec, A,<br>
+jnz, A, loop,<br>
+hlt,<br>
+         
+</code>
 
 ## Testing
 The test_cpu function sets up a simple test program and runs it on the simulated CPU. The program counts down from 10 and then halts. After the program finishes running, the function prints out the values of the CPU's registers and the contents of memory address 0x10.<br>

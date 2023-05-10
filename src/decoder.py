@@ -109,7 +109,6 @@ class Decoder:
         address = self.cpu.fetch_byte()
         value = self.cpu.registers.read(source)
         self.cpu.ram.write(address, value)
-
     def add(self):
 
         reg_1 = self.cpu.fetch_byte()
