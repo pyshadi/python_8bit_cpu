@@ -22,12 +22,14 @@ A fetch_word method, which fetches the next two bytes from memory and combines t
 A fetch_byte method, which fetches the next byte from memory.<br>
 A fetch_address method, which fetches the next byte from memory and returns it as an 8-bit address.<br>
 
-## decoder.py
-The Decoder class is responsible for decoding the opcodes fetched from memory and calling the appropriate instruction function from the ALU class based on the decoded opcode.<br>
+## registers.py
 
-It has an opcode_map dictionary attribute, which maps opcode values to their corresponding instruction functions in the ALU class. The dictionary includes entries for all the supported instructions, such as MOV, ADD, SUB, CMP, JMP, PUSH, POP, and HLT.<br>
+Registers are used to store data that the CPU needs to perform its operations, such as the program counter and the accumulator.<br>
 
-The decode method takes an opcode value as input and returns the corresponding instruction function from the ALU class. If the opcode value is not found in the opcode_map dictionary, it raises a NotImplementedError.<br>
+The Registers class has a read method, which takes a register index and returns the value stored in that register. It also has a write method, which takes a register index and a value, and stores that value in the specified register.<br>
+It defines several constants for register indices, including A, B, C, D, E, F, X, Y, SP, and PC. These constants can be used in place of raw register indices to make the code more readable.<br>
+
+The Registers class has a registers attribute, which is a list of register values. It also has a num_registers attribute, which indicates the number of registers in the set. By default, the Registers class initializes with ten registers, but this can be customized by passing a different value to the num_registers parameter when creating an instance of the class.<br>
 
 ## memory.py
 
@@ -41,14 +43,13 @@ The RAM class is used to store data that the CPU needs to perform its operations
 The read method reads a byte from memory at the specified address. It also has a write method, which writes a byte to memory at the specified address.<br>
 The RAM class also has read_word and write_word methods, which are used to read and write 16-bit words to memory. These methods are useful for working with data types that are larger than a single byte.<br>
 
-## registers.py
+## decoder.py
+The Decoder class is responsible for decoding the opcodes fetched from memory and calling the appropriate instruction function from the ALU class based on the decoded opcode.<br>
 
-Registers are used to store data that the CPU needs to perform its operations, such as the program counter and the accumulator.<br>
+It has an opcode_map dictionary attribute, which maps opcode values to their corresponding instruction functions in the ALU class. The dictionary includes entries for all the supported instructions, such as MOV, ADD, SUB, CMP, JMP, PUSH, POP, and HLT.<br>
 
-The Registers class has a read method, which takes a register index and returns the value stored in that register. It also has a write method, which takes a register index and a value, and stores that value in the specified register.<br>
-It defines several constants for register indices, including A, B, C, D, E, F, X, Y, SP, and PC. These constants can be used in place of raw register indices to make the code more readable.<br>
+The decode method takes an opcode value as input and returns the corresponding instruction function from the ALU class. If the opcode value is not found in the opcode_map dictionary, it raises a NotImplementedError.<br>
 
-The Registers class has a registers attribute, which is a list of register values. It also has a num_registers attribute, which indicates the number of registers in the set. By default, the Registers class initializes with ten registers, but this can be customized by passing a different value to the num_registers parameter when creating an instance of the class.<br>
 
 ## assemblyer.py
 
@@ -96,8 +97,8 @@ Finally, the method returns the bytecode list, which can be loaded into the comp
 | XORD | 0x19 | reg, reg | Bitwise XOR a register with data from another register and put result in the accumulator |
 | XORI | 0x1A | D, imm | Bitwise XOR Destination register with immediate data |
 | XORA | 0x1B | D, mem | Bitwise XOR Destination register with data from memory |
-| RTL | 0x1C | D | Rotate Destination register left |
-| RTR | 0x1D | D | Rotate Destination register right |
+| RTL | 0x1C | D | Rotate Destination register left|
+| RTR | 0x1D | D | Rotate Destination register right|
 
 ## Testing
 The test_cpu function sets up a simple test program and runs it on the simulated CPU. The program counts down from 10 and then halts. After the program finishes running, the function prints out the values of the CPU's registers and the contents of memory address 0x10.<br>
