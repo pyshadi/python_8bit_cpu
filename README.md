@@ -3,12 +3,12 @@
 This is a simple CPU simulator, which emulates the behavior of a computer's CPU. <br>
 The CPU is programmed with a specific set of instructions that it can execute, and it fetches those instructions from memory as it runs.<br>
 
-## cpu.py
+### alu.py
 
-### ALU
 The ALU (Arithmetic Logic Unit) class provides arithmetic and logical operations for the CPU. It supports operations like addition, subtraction, multiplication, division, bitwise AND, bitwise OR, bitwise XOR, bitwise NOT, left and right shifts, as well as comparison operations.<br>
 
-### CPU
+## cpu.py
+
 The CPU class takes as input a ROM object, which contains the instructions that the CPU will execute, and a RAM object, which represents the computer's memory. It has a set of Registers, which hold data that the CPU needs to perform its operations and it has an ALU object and a Decoder object that it uses to execute instructions.<br>
 
 The CPU class has a fetch method, which fetches the next instruction from memory and returns it as a byte. It also has a decode method, which decodes the byte into an instruction function. It has an execute method, which executes the instruction returned by the decode method.<br>
@@ -130,7 +130,7 @@ Finally, the method returns the bytecode list, which can be loaded into the comp
 | RET | 0x38 | None | Return from a subroutine |
 | HLT | 0xFF | None | Halt the CPU |
 
-## Example assembly program: <br>
+## Example assembly program:
 <code>          
 mvi, A, 1000,<br>
 loop:,<br>
@@ -141,4 +141,11 @@ hlt,<br>
 </code>
 
 ## Testing
+
+### main.py
+From parent directory run main as module: <code>python -m main</code> or run it as a script: <code>python main.py</code>
 The test_cpu function sets up a simple test program and runs it on the simulated CPU. The program counts down from 10 and then halts. After the program finishes running, the function prints out the values of the CPU's registers and the contents of memory address 0x10.<br>
+
+### alu_test.py
+From parent directory run alu_test as module: <code>python -m tests.alu_test</code>
+This tests the Arithmetic Logic Unit (ALU) arithmetic and bitwise operations.

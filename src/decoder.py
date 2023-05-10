@@ -1,4 +1,4 @@
-from registers import Registers
+from src.registers import Registers
 
 class Decoder:
     def __init__(self, cpu):

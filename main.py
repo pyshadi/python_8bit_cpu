@@ -1,6 +1,6 @@
-from cpu import CPU
-from memory import ROM, RAM
-from assembler import Assembler
+from src.cpu import CPU
+from src.memory import ROM, RAM
+from src.assembler import Assembler
 
 def test_cpu():
     source = [
