@@ -2,7 +2,7 @@
 
 This is a simple CPU simulator, which emulates the behavior of a computer's CPU. <br>
 The CPU is programmed with a specific set of instructions that it can execute, and it fetches those instructions from memory as it runs.<br>
-
+The CPU bit_width can be easly changed. However, some modifications to the code might be necessary.
 ## alu.py
 
 The ALU (Arithmetic Logic Unit) class provides arithmetic and logical operations for the CPU. It supports operations like addition, subtraction, multiplication, division, bitwise AND, bitwise OR, bitwise XOR, bitwise NOT, left and right shifts, as well as comparison operations.<br>
