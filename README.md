@@ -23,9 +23,9 @@ A fetch_byte method, which fetches the next byte from memory.<br>
 A fetch_address method, which fetches the next byte from memory and returns it as an 8-bit address.<br>
 
 ## decoder.py
-The Decoder class in the python_8bit_cpu project is responsible for decoding the opcodes fetched from memory and calling the appropriate instruction function from the ALU class based on the decoded opcode.<br>
+The Decoder class is responsible for decoding the opcodes fetched from memory and calling the appropriate instruction function from the ALU class based on the decoded opcode.<br>
 
-The Decoder class has an opcode_map dictionary attribute, which maps opcode values to their corresponding instruction functions in the ALU class. The dictionary includes entries for all the supported instructions, such as MOV, ADD, SUB, CMP, JMP, PUSH, POP, and HLT.<br>
+It has an opcode_map dictionary attribute, which maps opcode values to their corresponding instruction functions in the ALU class. The dictionary includes entries for all the supported instructions, such as MOV, ADD, SUB, CMP, JMP, PUSH, POP, and HLT.<br>
 
 The decode method takes an opcode value as input and returns the corresponding instruction function from the ALU class. If the opcode value is not found in the opcode_map dictionary, it raises a NotImplementedError.<br>
 
