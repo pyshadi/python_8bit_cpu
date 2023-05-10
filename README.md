@@ -62,5 +62,42 @@ In the second pass, the method translates each line of assembly code into byteco
 
 Finally, the method returns the bytecode list, which can be loaded into the computer's memory and executed by the CPU.<br>
 
+## Instruction Set
+
+| Mnemonic | Opcode | Operands | Description |
+| --- | --- | --- | --- |
+| NOP | 0x00 | None | No operation |
+| MOV | 0x01 | D, S | Move data from one Source register to Destination register |
+| MVI | 0x02 | D, imm | Move immediate data into Destination register |
+| LD | 0x03 | D, mem | Load data from memory into Destination register |
+| ST | 0x04 | S, mem | Store data from Source register into memory |
+| ADD | 0x05 | reg, reg | Add data from a register to another and put result in the accumulator|
+| ADDI | 0x06 |  D, imm | Add immediate data to  Destination register |
+| ADDA | 0x07 | D, mem | Add data from memory to  Destination register |
+| SUB | 0x08 | reg, reg | Subtract data in a register from another and put result in the accumulator |
+| SUBI | 0x09 | D, imm | Subtract immediate data from  Destination register |
+| SUBA | 0x0A | D, mem | Subtract memory data from  Destination register |
+| MUL | 0x0B | reg, reg | Multiply data in a register with another |
+| MULI | 0x0C | D, imm | Multiply immediate data with register and put result in the accumulator |
+| MULA | 0x0D | D, mem | Multiply memory data with data in Destination register |
+| DIV | 0x0E | reg, reg| Divide a register by data in another register and put result in the accumulator |
+| DIVI | 0x0F | D, imm | Divide Destination register by immediate data |
+| DIVA | 0x10 | D, mem | Divide Destination register by data in memory |
+
+
+| INC | 0x11 | D | Increment the value of Destination register |
+| DEC | 0x12 | D | Decrement the value of Destination register |
+| ANDD | 0x13 | reg, reg | Bitwise AND a register with data from another register and put result in the accumulator |
+| ANDI | 0x14 | D, imm | Bitwise AND the register with immediate data |
+| ANDA | 0x15 | D, mem | Bitwise AND the register with data from memory |
+| ORD | 0x16 | reg, reg| Bitwise OR a register with data from another register and put result in the accumulator |
+| ORI | 0x17 | D, imm | Bitwise OR Destination register with immediate data |
+| ORA | 0x18 | D, mem | Bitwise OR Destination register with data from memory |
+| XORD | 0x19 | reg, reg | Bitwise XOR a register with data from another register and put result in the accumulator |
+| XORI | 0x1A | D, imm | Bitwise XOR Destination register with immediate data |
+| XORA | 0x1B | D, mem | Bitwise XOR Destination register with data from memory |
+| RTL | 0x1C | D | Rotate Destination register left |
+| RTR | 0x1D | D | Rotate Destination register right |
+
 ## Testing
 The test_cpu function sets up a simple test program and runs it on the simulated CPU. The program counts down from 10 and then halts. After the program finishes running, the function prints out the values of the CPU's registers and the contents of memory address 0x10.<br>

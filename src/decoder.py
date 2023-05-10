@@ -127,12 +127,12 @@ class Decoder:
         self.cpu.registers.write(dest, result)
     def adda(self):
 
-        reg= self.cpu.fetch_byte()
+        dest= self.cpu.fetch_byte()
         address = self.cpu.fetch_byte()
-        reg_value = self.cpu.registers.read(reg)
+        dest_value = self.cpu.registers.read(dest)
         address_value = self.cpu.ram.read(address)
-        result = self.cpu.alu.add(reg_value, address_value)
-        self.cpu.registers.write(Registers.A, result)
+        result = self.cpu.alu.add(dest_value, address_value)
+        self.cpu.registers.write(dest, result)
     def sub(self):
         """
         Subtract the value in source register to dest Register.
@@ -155,12 +155,12 @@ class Decoder:
         self.cpu.registers.write(dest, result)
     def suba(self):
 
-        reg= self.cpu.fetch_byte()
+        dest= self.cpu.fetch_byte()
         address = self.cpu.fetch_byte()
-        reg_value = self.cpu.registers.read(reg)
+        dest_value = self.cpu.registers.read(dest)
         address_value = self.cpu.ram.read(address)
-        result = self.cpu.alu.sub(reg_value, address_value)
-        self.cpu.registers.write(Registers.A, result)
+        result = self.cpu.alu.sub(dest_value, address_value)
+        self.cpu.registers.write(dest, result)
     def mul(self):
 
         reg_1 = self.cpu.fetch_byte()
@@ -178,12 +178,12 @@ class Decoder:
         self.cpu.registers.write(dest, result)
     def mula(self):
 
-        reg= self.cpu.fetch_byte()
+        dest= self.cpu.fetch_byte()
         address = self.cpu.fetch_byte()
-        reg_value = self.cpu.registers.read(reg)
+        dest_value = self.cpu.registers.read(dest)
         address_value = self.cpu.ram.read(address)
-        result = self.cpu.alu.mul(reg_value, address_value)
-        self.cpu.registers.write(Registers.A, result)
+        result = self.cpu.alu.mul(dest_value, address_value)
+        self.cpu.registers.write(dest, result)
     def div(self):
 
         reg_1 = self.cpu.fetch_byte()
@@ -201,26 +201,26 @@ class Decoder:
         self.cpu.registers.write(dest, result)
     def diva(self):
 
-        reg= self.cpu.fetch_byte()
+        dest= self.cpu.fetch_byte()
         address = self.cpu.fetch_byte()
-        reg_value = self.cpu.registers.read(reg)
+        dest_value = self.cpu.registers.read(dest)
         address_value = self.cpu.ram.read(address)
-        result = self.cpu.alu.div(reg_value, address_value)
+        result = self.cpu.alu.div(dest_value, address_value)
         self.cpu.registers.write(Registers.A, result)
     def inc(self):
         """
         Increment the value in the register by 1.
         """
-        reg = self.cpu.fetch_byte()
-        value = self.cpu.registers.read(reg) + 1
-        self.cpu.registers.write(reg, value)
+        dest = self.cpu.fetch_byte()
+        value = self.cpu.registers.read(dest) + 1
+        self.cpu.registers.write(dest, value)
     def dec(self):
         """
         Decrement the value in the register by 1.
         """
-        reg = self.cpu.fetch_byte()
-        value = self.cpu.registers.read(reg) - 1
-        self.cpu.registers.write(reg, value)
+        dest = self.cpu.fetch_byte()
+        value = self.cpu.registers.read(dest) - 1
+        self.cpu.registers.write(dest, value)
 
     def andd(self):
         """
@@ -236,22 +236,22 @@ class Decoder:
         """
         AND the value in the reg_1, and num registers to the accumulator.
         """
-        reg_1 = self.cpu.fetch_byte()
+        dest = self.cpu.fetch_byte()
         value = self.cpu.fetch_byte()
-        value_1 = self.cpu.registers.read(reg_1)
+        value_1 = self.cpu.registers.read(dest)
         result = self.cpu.alu.and_(value_1, value)
-        self.cpu.registers.write(Registers.A, result)
+        self.cpu.registers.write(dest, result)
     def anda(self):
         """
         AND the value in the reg, and value in address to the accumulator.
         """
-        reg = self.cpu.fetch_byte()
+        dest = self.cpu.fetch_byte()
         address = self.cpu.fetch_byte()
 
-        reg_value = self.cpu.registers.read(reg)
+        dest_value = self.cpu.registers.read(dest)
         address_value = self.cpu.ram.read(address)
-        result = self.cpu.alu.and_(reg_value, address_value)
-        self.cpu.registers.write(Registers.A, result)
+        result = self.cpu.alu.and_(dest_value, address_value)
+        self.cpu.registers.write(dest, result)
     def ord(self):
         """
         OR the value in the reg_1, reg_2 registers to the accumulator.
@@ -266,22 +266,22 @@ class Decoder:
         """
         OR the value in the reg_1, value registers to the accumulator.
         """
-        reg_1 = self.cpu.fetch_byte()
+        dest = self.cpu.fetch_byte()
         value = self.cpu.fetch_byte()
-        value_1 = self.cpu.registers.read(reg_1)
-        result = self.cpu.alu.or_(value_1, value)
-        self.cpu.registers.write(Registers.A, result)
+        dest_value = self.cpu.registers.read(dest)
+        result = self.cpu.alu.or_(dest_value, value)
+        self.cpu.registers.write(dest, result)
     def ora(self):
         """
         OR the value in the reg, and value in address to the accumulator.
         """
-        reg = self.cpu.fetch_byte()
+        dest = self.cpu.fetch_byte()
         address = self.cpu.fetch_byte()
 
-        reg_value = self.cpu.registers.read(reg)
+        dest_value = self.cpu.registers.read(dest)
         address_value = self.cpu.ram.read(address)
-        result = self.cpu.alu.or_(reg_value, address_value)
-        self.cpu.registers.write(Registers.A, result)
+        result = self.cpu.alu.or_(dest_value, address_value)
+        self.cpu.registers.write(dest, result)
     def xord(self):
         """
         XOR the value in the reg_1, reg_2 registers to the accumulator.
@@ -296,57 +296,57 @@ class Decoder:
         """
         XOR the value in the reg_1, value registers to the accumulator.
         """
-        reg_1 = self.cpu.fetch_byte()
+        dest = self.cpu.fetch_byte()
         value = self.cpu.fetch_byte()
-        value_1 = self.cpu.registers.read(reg_1)
-        result = self.cpu.alu.xor_(value_1, value)
-        self.cpu.registers.write(Registers.A, result)
+        dest_value = self.cpu.registers.read(dest)
+        result = self.cpu.alu.xor_(dest_value, value)
+        self.cpu.registers.write(dest, result)
     def xora(self):
         """
         XOR the value in the reg, and value in address to the accumulator.
         """
-        reg = self.cpu.fetch_byte()
+        dest = self.cpu.fetch_byte()
         address = self.cpu.fetch_byte()
 
-        reg_value = self.cpu.registers.read(reg)
+        dest_value = self.cpu.registers.read(dest)
         address_value = self.cpu.ram.read(address)
-        result = self.cpu.alu.xor_(reg_value, address_value)
-        self.cpu.registers.write(Registers.A, result)
+        result = self.cpu.alu.xor_(dest_value, address_value)
+        self.cpu.registers.write(dest, result)
 
     def rtl(self):
         """
         Rotate the value in the  register one bit to the left.
         """
-        reg = self.cpu.fetch_byte()
-        value = self.cpu.registers.read(reg)
+        dest = self.cpu.fetch_byte()
+        value = self.cpu.registers.read(dest)
         new_value = self.cpu.alu.rotate_left(value)
-        self.cpu.registers.write(reg, new_value)
+        self.cpu.registers.write(dest, new_value)
     def rtr(self):
         """
         Rotate the value in the  register one bit to the right.
         """
-        reg = self.cpu.fetch_byte()
-        value = self.cpu.registers.read(reg)
+        dest = self.cpu.fetch_byte()
+        value = self.cpu.registers.read(dest)
         new_value = self.cpu.alu.rotate_right(value)
-        self.cpu.registers.write(reg, new_value)
+        self.cpu.registers.write(dest, new_value)
     def shl(self):
         """
         Shift the value in the register n bits to the left.
         """
-        reg = self.cpu.fetch_byte()
+        dest = self.cpu.fetch_byte()
         shift_value = self.cpu.fetch_byte()
-        reg_value = self.cpu.registers.read(reg)
-        new_value = self.cpu.alu.shift_left(reg_value, shift_value )
-        self.cpu.registers.write(reg, new_value)
+        dest_value = self.cpu.registers.read(dest)
+        new_value = self.cpu.alu.shift_left(dest_value, shift_value )
+        self.cpu.registers.write(dest, new_value)
     def shr(self):
         """
         Shift the value in the register n bits to the right.
         """
-        reg = self.cpu.fetch_byte()
+        dest = self.cpu.fetch_byte()
         shift_value = self.cpu.fetch_byte()
-        reg_value = self.cpu.registers.read(reg)
-        new_value = self.cpu.alu.shift_right(reg_value, shift_value )
-        self.cpu.registers.write(reg, new_value)
+        dest_value = self.cpu.registers.read(dest)
+        new_value = self.cpu.alu.shift_right(dest_value, shift_value )
+        self.cpu.registers.write(dest, new_value)
 
     def cmp(self):
         """
