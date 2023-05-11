@@ -132,7 +132,7 @@ Finally, the method returns the bytecode list, which can be loaded into the comp
 
 ## Example assembly program:
 <code>          
-mvi, A, 1000,<br>
+mvi, A, 10,<br>
 loop:,<br>
 dec, A,<br>
 jnz, A, loop,<br>
