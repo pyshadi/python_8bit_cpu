@@ -1,6 +1,6 @@
 # python_8bit_cpu
 
-This is a simple CPU simulator, which emulates the behavior of a computer's CPU. <br>
+This is a simple CPU simulator, which mimics the behavior of a computer's CPU. <br>
 The CPU is programmed with a specific set of instructions that it can execute, and it fetches those instructions from memory as it runs.<br>
 The CPU bit_width can be easly changed. However, some modifications to the code might be necessary.
 ## alu.py
