@@ -1,6 +1,6 @@
 # python_8bit_cpu
 
-This is a simple CPU simulator, which emulates the behavior of a computer's CPU. <br>
+This is a simple CPU simulator, which mimics the behavior of a computer's CPU. <br>
 The CPU is programmed with a specific set of instructions that it can execute, and it fetches those instructions from memory as it runs.<br>
 The CPU bit_width can be easly changed. However, some modifications to the code might be necessary.
 ## alu.py
@@ -132,7 +132,7 @@ Finally, the method returns the bytecode list, which can be loaded into the comp
 
 ## Example assembly program:
 <code>          
-mvi, A, 1000,<br>
+mvi, A, 10,<br>
 loop:,<br>
 dec, A,<br>
 jnz, A, loop,<br>
@@ -147,5 +147,5 @@ From parent directory run main as module: <code>python -m main</code> or run it 
 The test_cpu function sets up a simple test program and runs it on the simulated CPU. The program counts down from 10 and then halts. After the program finishes running, the function prints out the values of the CPU's registers and the contents of memory address 0x10.<br>
 
 ### alu_test.py
-From parent directory run alu_test as module: <code>python -m tests.alu_test</code>
+From parent directory run alu_test as a pytest: <code>pytest -s .\tests\alu_test.py</code>
 This tests the Arithmetic Logic Unit (ALU) arithmetic and bitwise operations.
