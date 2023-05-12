@@ -147,5 +147,5 @@ From parent directory run main as module: <code>python -m main</code> or run it 
 The test_cpu function sets up a simple test program and runs it on the simulated CPU. The program counts down from 10 and then halts. After the program finishes running, the function prints out the values of the CPU's registers and the contents of memory address 0x10.<br>
 
 ### alu_test.py
-From parent directory run alu_test as module: <code>python -m tests.alu_test</code>
+From parent directory run alu_test as module: <code>python -m tests.alu_test</code> or use pytest <code>pytest -s .\tests\alu_test.py</code>
 This tests the Arithmetic Logic Unit (ALU) arithmetic and bitwise operations.
