@@ -23,8 +23,6 @@ A fetch_address method, which fetches the next byte from memory and returns it a
 
 ## registers.py
 
-Registers are used to store data that the CPU needs to perform its operations, such as the program counter and the accumulator.<br>
-
 The Registers class has a read method, which takes a register index and returns the value stored in that register. It also has a write method, which takes a register index and a value, and stores that value in the specified register.<br>
 It defines several constants for register indices, including A, B, C, D, E, F, X, Y, SP, and PC. These constants can be used in place of raw register indices to make the code more readable.<br>
 
