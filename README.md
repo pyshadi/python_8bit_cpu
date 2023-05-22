@@ -36,7 +36,7 @@ The ROM contains the instructions that the CPU will execute. It takes as input a
 The ROM class has a read method, which reads a byte from memory at the specified address. It also has a write method, which raises a RuntimeError because ROM is read-only.<br><br>
 
 ### RAM
-The RAM class is used to store data that the CPU needs to perform its operations. It takes as input a size parameter, which represents the size of the RAM in bytes, and an optional bit_width parameter, which specifies the number of bits used to represent each byte in memory.<br>
+The RAM class takes as input a size parameter, which represents the size of the RAM in bytes, and an optional bit_width parameter.<br>
 The read method reads a byte from memory at the specified address. It also has a write method, which writes a byte to memory at the specified address.<br>
 The RAM class also has read_word and write_word methods, which are used to read and write 16-bit words to memory. These methods are useful for working with data types that are larger than a single byte.<br>
 
@@ -50,7 +50,7 @@ The decode method takes an opcode value as input and returns the corresponding i
 
 ## assemblyer.py
 
-The Assembler class is responsible for translating human-readable assembly code into machine code that can be executed by the CPU. It has a dictionary opcode_map that maps the assembly instructions to their corresponding opcodes in machine code. For example, the assembly instruction mvi (move immediate value) is mapped to the opcode 0x02.<br>
+The Assembler class has a dictionary <code>opcode_map</code> that maps the assembly instructions to their corresponding opcodes in machine code. For example, the assembly instruction mvi (move immediate value) is mapped to the opcode 0x02.<br>
 The class also has a register_map dictionary that maps the names of the CPU's registers to their corresponding addresses in memory. For example, the register A is mapped to the address 0x00.<br>
 The assemble method takes in the assembly source code as input and returns the corresponding bytecode that can be executed by the CPU. It uses a two-pass process to translate the assembly code to bytecode.<br>
 
