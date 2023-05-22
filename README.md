@@ -1,17 +1,18 @@
 # python_8bit_cpu
 
-This is a simple CPU simulator, which mimics the behavior of a computer's CPU. <br>
-The CPU is programmed with a specific set of instructions that it can execute, and it fetches those instructions from memory as it runs.<br>
-The CPU bit_width can be easly changed. However, some modifications to the code might be necessary.
+This is a simple (in progress) CPU simulator, which mimics the behavior of a computer's CPU. <br>
+
 ## alu.py
 
-The ALU (Arithmetic Logic Unit) class provides arithmetic and logical operations for the CPU. It supports operations like addition, subtraction, multiplication, division, bitwise AND, bitwise OR, bitwise XOR, bitwise NOT, left and right shifts, as well as comparison operations.<br>
+The ALU class provides arithmetic and logical operations for the CPU. It supports operations like addition, subtraction, multiplication, division, bitwise AND, bitwise OR, bitwise XOR, bitwise NOT, left and right shifts, as well as comparison operations.<br>
 
 ## cpu.py
 
-The CPU class takes as input a ROM object, which contains the instructions that the CPU will execute, and a RAM object, which represents the computer's memory. It has a set of Registers, which hold data that the CPU needs to perform its operations and it has an ALU object and a Decoder object that it uses to execute instructions.<br>
+The CPU class takes as input a ROM object, which contains the instructions that the CPU will execute, and a RAM object, which represents the computer's memory. <br>
+It has a set of Registers, which hold data that the CPU needs to perform its operations and it has an ALU object and a Decoder object that it uses to execute instructions.<br>
 
-The CPU class has a fetch method, which fetches the next instruction from memory and returns it as a byte. It also has a decode method, which decodes the byte into an instruction function. It has an execute method, which executes the instruction returned by the decode method.<br>
+The CPU class has a fetch method, which fetches the next instruction from memory and returns it as a byte. It also has a decode method, which decodes the byte into an instruction function. <br>
+It has an execute method, which executes the instruction returned by the decode method.<br>
 
 The run method fetches the next instruction, decodes it, and executes it. The run method loops until it encounters a "halt" instruction or until the halted attribute of the CPU object is set to True.<br>
 
