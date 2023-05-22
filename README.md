@@ -11,52 +11,54 @@ The ALU class provides arithmetic and logical operations for the CPU. It support
 The CPU class takes as input a ROM object, which contains the instructions that the CPU will execute, and a RAM object, which represents the computer's memory. <br>
 It has a set of Registers, which hold data that the CPU needs to perform its operations and it has an ALU object and a Decoder object that it uses to execute instructions.<br>
 
-The CPU class has a fetch method, which fetches the next instruction from memory and returns it as a byte. It also has a decode method, which decodes the byte into an instruction function. <br>
+The CPU class has a <code>fetch</code> method, which fetches the next instruction from memory and returns it as a byte. It also has a decode method, which decodes the byte into an instruction function. <br>
 It has an execute method, which executes the instruction returned by the decode method.<br>
 
 The run method fetches the next instruction, decodes it, and executes it. The run method loops until it encounters a "halt" instruction or until the halted attribute of the CPU object is set to True.<br>
 
-The CPU class has a halted attribute, which is set to False by default. When the CPU encounters a "halt" instruction, it sets the halted attribute to True, which causes the run method to stop looping.<br>
-A fetch_word method, which fetches the next two bytes from memory and combines them into a single 16-bit value.<br>
-A fetch_byte method, which fetches the next byte from memory.<br>
-A fetch_address method, which fetches the next byte from memory and returns it as an 8-bit address.<br>
+The CPU class has a <code>halted</code> attribute, which is set to False by default. When the CPU encounters a "halt" instruction, it sets the halted attribute to True, which causes the run method to stop looping.<br>
+A <code>fetch_word</code> method, which fetches the next two bytes from memory and combines them into a single 16-bit value.<br>
+A <code>fetch_byte</code> method, which fetches the next byte from memory.<br>
+A <code>fetch_address</code> method, which fetches the next byte from memory and returns it as an 8-bit address.<br>
 
 ## registers.py
 
-The Registers class has a read method, which takes a register index and returns the value stored in that register. It also has a write method, which takes a register index and a value, and stores that value in the specified register.<br>
-It defines several constants for register indices, including A, B, C, D, E, F, X, Y, SP, and PC. These constants can be used in place of raw register indices to make the code more readable.<br>
+The Registers class has a <code>read</code> method, which takes a register index and returns the value stored in that register. It also has a write method, which takes a register index and a value, and stores that value in the specified register.<br>
+It defines several constants for register indices, including <code>A, B, C, D, E, F, X, Y, SP,</code> and <code>PC</code>. These constants can be used in place of raw register indices to make the code more readable.<br>
 
-The Registers class has a registers attribute, which is a list of register values. It also has a num_registers attribute, which indicates the number of registers in the set. By default, the Registers class initializes with ten registers, but this can be customized by passing a different value to the num_registers parameter when creating an instance of the class.<br>
+The Registers class has a registers attribute, which is a list of register values. It also has a <code>num_registers</code> attribute, which indicates the number of registers in the set. <br>
+By default, the Registers class initializes with ten registers, but this can be customized by passing a different value to the <code>num_registers</code> parameter when creating an instance of the class.<br>
 
 ## memory.py
 
 ### ROM
-The ROM contains the instructions that the CPU will execute. It takes as input a size parameter, which represents the size of the ROM in bytes, and an optional content parameter, which is a list of bytes representing the initial contents of the ROM.<br>
+The ROM contains the instructions that the CPU will execute. It takes as input a <code>size</code> parameter, which represents the size of the ROM in bytes, and an optional <code>content</code> parameter, which is a list of bytes representing the initial contents of the ROM.<br>
 
-The ROM class has a read method, which reads a byte from memory at the specified address. It also has a write method, which raises a RuntimeError because ROM is read-only.<br><br>
+The ROM class has a <code>read</code> method, which reads a byte from memory at the specified address. It also has a <code>write</code> method, which raises a RuntimeError because ROM is read-only.<br><br>
 
 ### RAM
-The RAM class takes as input a size parameter, which represents the size of the RAM in bytes, and an optional bit_width parameter.<br>
-The read method reads a byte from memory at the specified address. It also has a write method, which writes a byte to memory at the specified address.<br>
-The RAM class also has read_word and write_word methods, which are used to read and write 16-bit words to memory. These methods are useful for working with data types that are larger than a single byte.<br>
+The RAM class takes as input a <code>size</code> parameter, which represents the size of the RAM in bytes, and an optional <code>bit_width</code> parameter.<br>
+The <code>read</code> method reads a byte from memory at the specified address. It also has a write method, which writes a byte to memory at the specified address.<br>
+The RAM class also has <code>read_word</code> and <code>write_word</code> methods, which are used to read and write 16-bit words to memory. These methods are useful for working with data types that are larger than a single byte.<br>
 
 ## decoder.py
 The Decoder class is responsible for decoding the opcodes fetched from memory and calling the appropriate instruction function from the ALU class based on the decoded opcode.<br>
 
-It has an opcode_map dictionary attribute, which maps opcode values to their corresponding instruction functions in the ALU class. The dictionary includes entries for all the supported instructions, such as MOV, ADD, SUB, CMP, JMP, PUSH, POP, and HLT.<br>
+It has an <code>opcode_map</code> dictionary attribute, which maps opcode values to their corresponding instruction functions in the ALU class. The dictionary includes entries for all the supported instructions, such as MOV, ADD, SUB, CMP, JMP, PUSH, POP, and HLT.<br>
 
-The decode method takes an opcode value as input and returns the corresponding instruction function from the ALU class. If the opcode value is not found in the opcode_map dictionary, it raises a NotImplementedError.<br>
+The decode method takes an opcode value as input and returns the corresponding instruction function from the ALU class. If the opcode value is not found in the <code>opcode_map</code> dictionary, it raises a NotImplementedError.<br>
 
 
 ## assemblyer.py
 
 The Assembler class has a dictionary <code>opcode_map</code> that maps the assembly instructions to their corresponding opcodes in machine code. For example, the assembly instruction mvi (move immediate value) is mapped to the opcode 0x02.<br>
-The class also has a register_map dictionary that maps the names of the CPU's registers to their corresponding addresses in memory. For example, the register A is mapped to the address 0x00.<br>
+The class also has a  <code>register_map</code> dictionary that maps the names of the CPU's registers to their corresponding addresses in memory. For example, the register A is mapped to the address 0x00.<br>
 The assemble method takes in the assembly source code as input and returns the corresponding bytecode that can be executed by the CPU. It uses a two-pass process to translate the assembly code to bytecode.<br>
 
 In the first pass, the method identifies any labels in the code and adds them to a dictionary labels. A label is identified as any line that ends with a colon :. The index of the label is then added to the dictionary.<br>
 
-In the second pass, the method translates each line of assembly code into bytecode. It separates any labels from the instruction and splits the line into parts. It then translates the opcode using the opcode_map dictionary and appends it to the bytecode list. The method then translates any operands using the register_map dictionary or the labels dictionary if they are a label. If the operand is a number, it is simply appended to the bytecode list.<br>
+In the second pass, the method translates each line of assembly code into bytecode. It separates any labels from the instruction and splits the line into parts. It then translates the opcode using the <code>opcode_map</code> dictionary and appends it to the bytecode list.<br>
+The method then translates any operands using the <code>register_map</code> dictionary or the labels dictionary if they are a label. If the operand is a number, it is simply appended to the bytecode list.<br>
 
 Finally, the method returns the bytecode list, which can be loaded into the computer's memory and executed by the CPU.<br>
 
