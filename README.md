@@ -8,7 +8,7 @@ The ALU class provides arithmetic and logical operations for the CPU. It support
 
 ## cpu.py
 
-The CPU class takes as input a ROM object, which contains the instructions that the CPU will execute, and a RAM object, which represents the computer's memory. <br>
+The CPU class takes a ROM object as input. The object contains the instructions that the CPU will execute, and a RAM object, which represents the computer's memory. <br>
 It has a set of Registers, which hold data that the CPU needs to perform its operations and it has an ALU object and a Decoder object that it uses to execute instructions.<br>
 
 The CPU class has a <code>fetch</code> method, which fetches the next instruction from memory and returns it as a byte. It also has a decode method, which decodes the byte into an instruction function. <br>
