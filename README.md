@@ -1,6 +1,6 @@
 # python_8bit_cpu
 
-This is a simple (in progress) CPU simulator, which mimics the behavior of a computer's CPU. <br>
+This is a simple (in progress) CPU simulator, which mimics the behavior of a computer's CPU. <br><br><br>
 ![UML Diagram](assets/img.png "UML-Code Structure")
 <br>
 
