@@ -29,7 +29,6 @@ class Assembler:
         'Y': 0x0d,
         'SP': 0x0e,
         'PC': 0x0f,
-        # ... and so on for the rest of your registers
     }
 
     @classmethod
