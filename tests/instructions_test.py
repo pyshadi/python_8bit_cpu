@@ -1,5 +1,6 @@
 import pytest
 
+from src.alu import Flags
 from src.registers import Registers
 from tests.helpers import run_program
 
@@ -54,4 +55,75 @@ def test_call_and_ret():
     cpu = run_program("call, sub\nmvi, B, 1\nhlt\nsub:\nmvi, C, 2\nret")
     assert reg(cpu, "B") == 1
     assert reg(cpu, "C") == 2
+    assert reg(cpu, "SP") == 255
+
+
+def test_nested_calls():
+    cpu = run_program("call, outer\nhlt\nouter:\ncall, inner\nret\ninner:\nmvi, C, 9\nret")
+    assert reg(cpu, "C") == 9
+    assert reg(cpu, "SP") == 255
+    assert cpu.halted
+
+
+# B = 12, C / immediate / RAM[40] = 10
+BINARY_RESULTS = {"add": 22, "sub": 2, "mul": 120, "div": 1, "and": 8, "or": 14, "xor": 6}
+REGISTER_FORMS = {"add": "add", "sub": "sub", "mul": "mul", "div": "div", "and": "andd", "or": "ord", "xor": "xord"}
+IMMEDIATE_FORMS = {"add": "addi", "sub": "subi", "mul": "muli", "div": "divi", "and": "andi", "or": "ori", "xor": "xori"}
+MEMORY_FORMS = {"add": "adda", "sub": "suba", "mul": "mula", "div": "diva", "and": "anda", "or": "ora", "xor": "xora"}
+
+
+@pytest.mark.parametrize("operation", BINARY_RESULTS)
+def test_register_register_form_writes_accumulator(operation):
+    cpu = run_program(f"mvi, B, 12\nmvi, C, 10\n{REGISTER_FORMS[operation]}, B, C\nhlt")
+    assert reg(cpu, "A") == BINARY_RESULTS[operation]
+    assert (reg(cpu, "B"), reg(cpu, "C")) == (12, 10)
+
+
+@pytest.mark.parametrize("operation", BINARY_RESULTS)
+def test_register_immediate_form_writes_register(operation):
+    cpu = run_program(f"mvi, B, 12\n{IMMEDIATE_FORMS[operation]}, B, 10\nhlt")
+    assert reg(cpu, "B") == BINARY_RESULTS[operation]
+    assert reg(cpu, "A") == 0
+
+
+@pytest.mark.parametrize("operation", BINARY_RESULTS)
+def test_register_memory_form_writes_register(operation):
+    cpu = run_program(f"mvi, C, 10\nst, C, 40\nmvi, B, 12\n{MEMORY_FORMS[operation]}, B, 40\nhlt")
+    assert reg(cpu, "B") == BINARY_RESULTS[operation]
+    assert reg(cpu, "A") == 0
+
+
+def test_rotate_instructions():
+    assert reg(run_program("mvi, B, 0b10001100\nrtl, B\nhlt"), "B") == 0b00011001
+    assert reg(run_program("mvi, B, 0b1100\nrtr, B\nhlt"), "B") == 0b0110
+
+
+def test_shift_instructions():
+    assert reg(run_program("mvi, B, 0b00001111\nshl, B, 2\nhlt"), "B") == 0b00111100
+    assert reg(run_program("mvi, B, 0b00111100\nshr, B, 2\nhlt"), "B") == 0b00001111
+
+
+@pytest.mark.parametrize("program", [
+    "mvi, A, 5\nmvi, B, 10\ncmp, A, B\nhlt",
+    "mvi, A, 5\ncmpi, A, 10\nhlt",
+    "mvi, B, 10\nst, B, 40\nmvi, A, 5\ncmpa, A, 40\nhlt",
+])
+def test_compare_forms_set_flags_only(program):
+    cpu = run_program(program)
+    assert reg(cpu, "F") == Flags.CARRY | Flags.SIGN
+    assert reg(cpu, "A") == 5
+
+
+@pytest.mark.parametrize("instruction, value, taken", [
+    ("jz", 0, True), ("jz", 1, False),
+    ("jnz", 1, True), ("jnz", 0, False),
+])
+def test_zero_jumps(instruction, value, taken):
+    cpu = run_program(f"mvi, B, {value}\n{instruction}, B, end\nmvi, C, 99\nend:\nhlt")
+    assert reg(cpu, "C") == (0 if taken else 99)
+
+
+def test_pushi_and_pusha():
+    cpu = run_program("pushi, 42\nmvi, B, 9\nst, B, 40\npusha, 40\npop, C\npop, D\nhlt")
+    assert (reg(cpu, "C"), reg(cpu, "D")) == (9, 42)
     assert reg(cpu, "SP") == 255
