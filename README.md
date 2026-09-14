@@ -60,6 +60,7 @@ The RAM class takes as input a <code>size</code> parameter, which represents the
 The <code>read</code> method reads a byte from memory at the specified address. It also has a write method, which writes a byte to memory at the specified address.<br>
 The RAM class also has <code>read_word</code> and <code>write_word</code> methods, which are used to read and write 16-bit words to memory. These methods are useful for working with data types that are larger than a single byte.<br>
 The stack lives at the top of RAM: <code>SP</code> starts at <code>size - 1</code> and grows downwards.<br>
+Pushing onto a full stack raises <code>StackOverflowError</code>, and <code>pop</code> or <code>ret</code> on an empty stack raises <code>StackUnderflowError</code>. Both are defined in <code>decoder.py</code> and subclass <code>IndexError</code>.<br>
 
 ## decoder.py
 The Decoder class is responsible for decoding the opcodes fetched from memory and executing them. Each instruction is a method on the Decoder, which reads its operands from ROM and uses the CPU's registers, RAM and ALU.<br>
@@ -141,6 +142,8 @@ Registers (<code>reg</code>, <code>D</code>, <code>S</code>) and immediate value
 | RTR | 0x1D | D | Rotate Destination register right |
 | SHL | 0x1E | D, imm | Shift Destination register left by imm bits |
 | SHR | 0x1F | D, imm | Shift Destination register right by imm bits |
+| INV | 0x33 | D | Bitwise NOT of Destination register |
+| SAR | 0x34 | D | Arithmetic shift Destination register right by one bit, keeping the sign bit |
 
 ### Control Transfer Instructions
 | Mnemonic | Opcode | Operands | Description |

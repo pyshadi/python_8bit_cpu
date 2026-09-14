@@ -92,6 +92,14 @@ def test_shift_right_sets_carry():
     assert alu.flags == 0x00
 
 
+def test_arithmetic_shift_right_carry_is_bit_shifted_out():
+    alu = ALU()
+    assert alu.arithmetic_shift_right(0b10000000) == 0b11000000
+    assert alu.flags == 0x00  # sign bit set, but a 0 was shifted out
+    assert alu.arithmetic_shift_right(0b00000011) == 0b00000001
+    assert alu.flags == 0x02
+
+
 def test_comparison():
     alu = ALU()
     assert alu.compare(5, 10) == (False, True, False, True)
