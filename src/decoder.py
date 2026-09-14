@@ -1,5 +1,8 @@
+import operator
+
 from src.alu import Flags
 from src.registers import Registers
+
 
 class Decoder:
     def __init__(self, cpu):
@@ -63,10 +66,6 @@ class Decoder:
             0x38: self.ret,
 
             0xff: self.hlt,
-
-
-
-            # Add more instructions here
         }
 
     def decode(self, opcode):
@@ -75,477 +74,285 @@ class Decoder:
         else:
             raise NotImplementedError(f"Unknown opcode: {opcode}")
 
+    # --- Operand helpers -------------------------------------------------------
+    # Each reads an instruction's operands from ROM and returns
+    # (register index, register value, second value).
+
+    def _reg(self):
+        reg = self.cpu.fetch_byte()
+        return reg, self.cpu.registers.read(reg)
+
+    def _reg_reg(self):
+        reg, value = self._reg()
+        return reg, value, self.cpu.registers.read(self.cpu.fetch_byte())
+
+    def _reg_imm(self):
+        reg, value = self._reg()
+        return reg, value, self.cpu.fetch_byte()
+
+    def _reg_mem(self):
+        reg, value = self._reg()
+        return reg, value, self.cpu.ram.read(self.cpu.fetch_byte())
+
+    # --- Stack and jump helpers ------------------------------------------------
+
+    def _push(self, value):
+        sp = self.cpu.registers.read(Registers.SP) - 1
+        self.cpu.ram.write(sp, value)  # raises IndexError on stack overflow
+        self.cpu.registers.write(Registers.SP, sp)
+
+    def _pop(self):
+        sp = self.cpu.registers.read(Registers.SP)
+        value = self.cpu.ram.read(sp)  # raises IndexError on stack underflow
+        self.cpu.registers.write(Registers.SP, sp + 1)
+        return value
+
+    def _jump(self, address):
+        self.cpu.registers.write(Registers.PC, address)
+
+    def _jump_if_flag(self, flag, is_set):
+        address = self.cpu.fetch_byte()
+        if bool(self.cpu.registers.read(Registers.F) & flag) == is_set:
+            self._jump(address)
+
+    def _jump_if_zero(self, is_zero):
+        _, value = self._reg()
+        address = self.cpu.fetch_byte()
+        if (value == 0) == is_zero:
+            self._jump(address)
+
+    def _jump_if_compare(self, compare):
+        _, value, immediate = self._reg_imm()
+        address = self.cpu.fetch_byte()
+        if compare(value, immediate):
+            self._jump(address)
+
+    def _write(self, reg, value):
+        self.cpu.registers.write(reg, value)
+
+    # --- Data transfer ---------------------------------------------------------
 
     def nop(self):
-        """
-        No operation.
-        """
-        pass
+        """No operation."""
+
     def mov(self):
-        dest = self.cpu.fetch_byte()
-        source = self.cpu.fetch_byte()
-        value = self.cpu.registers.read(source)
-        self.cpu.registers.write(dest, value)
+        """mov, D, S: copy register S into register D."""
+        dest, _, value = self._reg_reg()
+        self._write(dest, value)
+
     def mvi(self):
-        """
-        Move an immediate value into the A register.
-        """
-        dest = self.cpu.fetch_byte()
-        value = self.cpu.fetch_byte()
-        self.cpu.registers.write(dest, value)
+        """mvi, D, imm: load an immediate value into register D."""
+        dest, _, value = self._reg_imm()
+        self._write(dest, value)
+
     def ld(self):
-        """
-        Load the value at the specified memory address into the accumulator.
-        """
-        dest = self.cpu.fetch_byte()
-        address = self.cpu.fetch_byte()
-        value = self.cpu.ram.read(address)
-        self.cpu.registers.write(dest, value)
+        """ld, D, mem: load RAM[mem] into register D."""
+        dest, _, value = self._reg_mem()
+        self._write(dest, value)
+
     def st(self):
-        """
-        Store the value in the accumulator to the specified memory address.
-        """
-        source = self.cpu.fetch_byte()
-        address = self.cpu.fetch_byte()
-        value = self.cpu.registers.read(source)
-        self.cpu.ram.write(address, value)
+        """st, S, mem: store register S into RAM[mem]."""
+        _, value = self._reg()
+        self.cpu.ram.write(self.cpu.fetch_byte(), value)
+
+    # --- Arithmetic and logic --------------------------------------------------
+    # reg, reg forms write the result to A; reg, imm and reg, mem forms write it
+    # back to the register.
+
     def add(self):
+        _, a, b = self._reg_reg()
+        self._write(Registers.A, self.cpu.alu.add(a, b))
 
-        reg_1 = self.cpu.fetch_byte()
-        reg_2 = self.cpu.fetch_byte()
-        value_1 = self.cpu.registers.read(reg_1)
-        value_2 = self.cpu.registers.read(reg_2)
-        result = self.cpu.alu.add(value_1, value_2)
-        self.cpu.registers.write(Registers.A, result)
     def addi(self):
-        dest  = self.cpu.fetch_byte()
-        value = self.cpu.fetch_byte()
-        value_at_dest = self.cpu.registers.read(dest)
+        reg, a, b = self._reg_imm()
+        self._write(reg, self.cpu.alu.add(a, b))
 
-        result = self.cpu.alu.add(value, value_at_dest)
-        self.cpu.registers.write(dest, result)
     def adda(self):
+        reg, a, b = self._reg_mem()
+        self._write(reg, self.cpu.alu.add(a, b))
 
-        dest= self.cpu.fetch_byte()
-        address = self.cpu.fetch_byte()
-        dest_value = self.cpu.registers.read(dest)
-        address_value = self.cpu.ram.read(address)
-        result = self.cpu.alu.add(dest_value, address_value)
-        self.cpu.registers.write(dest, result)
     def sub(self):
-        """
-        Subtract the value in source register to dest Register.
-        """
-        reg_1 = self.cpu.fetch_byte()
-        reg_2 = self.cpu.fetch_byte()
-        value_1 = self.cpu.registers.read(reg_1)
-        value_2 = self.cpu.registers.read(reg_2)
-        result = self.cpu.alu.sub(value_1, value_2)
-        self.cpu.registers.write(Registers.A, result)
+        _, a, b = self._reg_reg()
+        self._write(Registers.A, self.cpu.alu.sub(a, b))
+
     def subi(self):
-        """
-        Subtract the value in the B register to the accumulator.
-        """
-        dest  = self.cpu.fetch_byte()
-        value = self.cpu.fetch_byte()
-        value_at_dest = self.cpu.registers.read(dest)
+        reg, a, b = self._reg_imm()
+        self._write(reg, self.cpu.alu.sub(a, b))
 
-        result = self.cpu.alu.sub(value_at_dest, value)
-        self.cpu.registers.write(dest, result)
     def suba(self):
+        reg, a, b = self._reg_mem()
+        self._write(reg, self.cpu.alu.sub(a, b))
 
-        dest= self.cpu.fetch_byte()
-        address = self.cpu.fetch_byte()
-        dest_value = self.cpu.registers.read(dest)
-        address_value = self.cpu.ram.read(address)
-        result = self.cpu.alu.sub(dest_value, address_value)
-        self.cpu.registers.write(dest, result)
     def mul(self):
+        _, a, b = self._reg_reg()
+        self._write(Registers.A, self.cpu.alu.mul(a, b))
 
-        reg_1 = self.cpu.fetch_byte()
-        reg_2 = self.cpu.fetch_byte()
-        value_1 = self.cpu.registers.read(reg_1)
-        value_2 = self.cpu.registers.read(reg_2)
-        result = self.cpu.alu.mul(value_1, value_2)
-        self.cpu.registers.write(Registers.A, result)
     def muli(self):
-        dest  = self.cpu.fetch_byte()
-        value = self.cpu.fetch_byte()
-        value_at_dest = self.cpu.registers.read(dest)
+        reg, a, b = self._reg_imm()
+        self._write(reg, self.cpu.alu.mul(a, b))
 
-        result = self.cpu.alu.mul(value, value_at_dest)
-        self.cpu.registers.write(dest, result)
     def mula(self):
+        reg, a, b = self._reg_mem()
+        self._write(reg, self.cpu.alu.mul(a, b))
 
-        dest= self.cpu.fetch_byte()
-        address = self.cpu.fetch_byte()
-        dest_value = self.cpu.registers.read(dest)
-        address_value = self.cpu.ram.read(address)
-        result = self.cpu.alu.mul(dest_value, address_value)
-        self.cpu.registers.write(dest, result)
     def div(self):
+        _, a, b = self._reg_reg()
+        self._write(Registers.A, self.cpu.alu.div(a, b))
 
-        reg_1 = self.cpu.fetch_byte()
-        reg_2 = self.cpu.fetch_byte()
-        value_1 = self.cpu.registers.read(reg_1)
-        value_2 = self.cpu.registers.read(reg_2)
-        result = self.cpu.alu.div(value_1, value_2)
-        self.cpu.registers.write(Registers.A, result)
     def divi(self):
-        dest  = self.cpu.fetch_byte()
-        value = self.cpu.fetch_byte()
-        value_at_dest = self.cpu.registers.read(dest)
+        reg, a, b = self._reg_imm()
+        self._write(reg, self.cpu.alu.div(a, b))
 
-        result = self.cpu.alu.div(value_at_dest, value)
-        self.cpu.registers.write(dest, result)
     def diva(self):
+        reg, a, b = self._reg_mem()
+        self._write(reg, self.cpu.alu.div(a, b))
 
-        dest= self.cpu.fetch_byte()
-        address = self.cpu.fetch_byte()
-        dest_value = self.cpu.registers.read(dest)
-        address_value = self.cpu.ram.read(address)
-        result = self.cpu.alu.div(dest_value, address_value)
-        self.cpu.registers.write(dest, result)
     def inc(self):
-        """
-        Increment the value in the register by 1.
-        """
-        dest = self.cpu.fetch_byte()
-        value = self.cpu.alu.add(self.cpu.registers.read(dest), 1)
-        self.cpu.registers.write(dest, value)
+        reg, value = self._reg()
+        self._write(reg, self.cpu.alu.add(value, 1))
+
     def dec(self):
-        """
-        Decrement the value in the register by 1.
-        """
-        dest = self.cpu.fetch_byte()
-        value = self.cpu.alu.sub(self.cpu.registers.read(dest), 1)
-        self.cpu.registers.write(dest, value)
+        reg, value = self._reg()
+        self._write(reg, self.cpu.alu.sub(value, 1))
 
     def andd(self):
-        """
-        AND the value in the reg_1, reg_2 registers to the accumulator.
-        """
-        reg_1 = self.cpu.fetch_byte()
-        reg_2 = self.cpu.fetch_byte()
-        value_1 = self.cpu.registers.read(reg_1)
-        value_2 = self.cpu.registers.read(reg_2)
-        result = self.cpu.alu.and_(value_1, value_2)
-        self.cpu.registers.write(Registers.A, result)
+        _, a, b = self._reg_reg()
+        self._write(Registers.A, self.cpu.alu.and_(a, b))
+
     def andi(self):
-        """
-        AND the value in the reg_1, and num registers to the accumulator.
-        """
-        dest = self.cpu.fetch_byte()
-        value = self.cpu.fetch_byte()
-        value_1 = self.cpu.registers.read(dest)
-        result = self.cpu.alu.and_(value_1, value)
-        self.cpu.registers.write(dest, result)
+        reg, a, b = self._reg_imm()
+        self._write(reg, self.cpu.alu.and_(a, b))
+
     def anda(self):
-        """
-        AND the value in the reg, and value in address to the accumulator.
-        """
-        dest = self.cpu.fetch_byte()
-        address = self.cpu.fetch_byte()
+        reg, a, b = self._reg_mem()
+        self._write(reg, self.cpu.alu.and_(a, b))
 
-        dest_value = self.cpu.registers.read(dest)
-        address_value = self.cpu.ram.read(address)
-        result = self.cpu.alu.and_(dest_value, address_value)
-        self.cpu.registers.write(dest, result)
     def ord(self):
-        """
-        OR the value in the reg_1, reg_2 registers to the accumulator.
-        """
-        reg_1 = self.cpu.fetch_byte()
-        reg_2 = self.cpu.fetch_byte()
-        value_1 = self.cpu.registers.read(reg_1)
-        value_2 = self.cpu.registers.read(reg_2)
-        result = self.cpu.alu.or_(value_1, value_2)
-        self.cpu.registers.write(Registers.A, result)
+        _, a, b = self._reg_reg()
+        self._write(Registers.A, self.cpu.alu.or_(a, b))
+
     def ori(self):
-        """
-        OR the value in the reg_1, value registers to the accumulator.
-        """
-        dest = self.cpu.fetch_byte()
-        value = self.cpu.fetch_byte()
-        dest_value = self.cpu.registers.read(dest)
-        result = self.cpu.alu.or_(dest_value, value)
-        self.cpu.registers.write(dest, result)
+        reg, a, b = self._reg_imm()
+        self._write(reg, self.cpu.alu.or_(a, b))
+
     def ora(self):
-        """
-        OR the value in the reg, and value in address to the accumulator.
-        """
-        dest = self.cpu.fetch_byte()
-        address = self.cpu.fetch_byte()
+        reg, a, b = self._reg_mem()
+        self._write(reg, self.cpu.alu.or_(a, b))
 
-        dest_value = self.cpu.registers.read(dest)
-        address_value = self.cpu.ram.read(address)
-        result = self.cpu.alu.or_(dest_value, address_value)
-        self.cpu.registers.write(dest, result)
     def xord(self):
-        """
-        XOR the value in the reg_1, reg_2 registers to the accumulator.
-        """
-        reg_1 = self.cpu.fetch_byte()
-        reg_2 = self.cpu.fetch_byte()
-        value_1 = self.cpu.registers.read(reg_1)
-        value_2 = self.cpu.registers.read(reg_2)
-        result = self.cpu.alu.xor(value_1, value_2)
-        self.cpu.registers.write(Registers.A, result)
-    def xori(self):
-        """
-        XOR the value in the reg_1, value registers to the accumulator.
-        """
-        dest = self.cpu.fetch_byte()
-        value = self.cpu.fetch_byte()
-        dest_value = self.cpu.registers.read(dest)
-        result = self.cpu.alu.xor(dest_value, value)
-        self.cpu.registers.write(dest, result)
-    def xora(self):
-        """
-        XOR the value in the reg, and value in address to the accumulator.
-        """
-        dest = self.cpu.fetch_byte()
-        address = self.cpu.fetch_byte()
+        _, a, b = self._reg_reg()
+        self._write(Registers.A, self.cpu.alu.xor(a, b))
 
-        dest_value = self.cpu.registers.read(dest)
-        address_value = self.cpu.ram.read(address)
-        result = self.cpu.alu.xor(dest_value, address_value)
-        self.cpu.registers.write(dest, result)
+    def xori(self):
+        reg, a, b = self._reg_imm()
+        self._write(reg, self.cpu.alu.xor(a, b))
+
+    def xora(self):
+        reg, a, b = self._reg_mem()
+        self._write(reg, self.cpu.alu.xor(a, b))
 
     def rtl(self):
-        """
-        Rotate the value in the  register one bit to the left.
-        """
-        dest = self.cpu.fetch_byte()
-        value = self.cpu.registers.read(dest)
-        new_value = self.cpu.alu.rotate_left(value)
-        self.cpu.registers.write(dest, new_value)
+        reg, value = self._reg()
+        self._write(reg, self.cpu.alu.rotate_left(value))
+
     def rtr(self):
-        """
-        Rotate the value in the  register one bit to the right.
-        """
-        dest = self.cpu.fetch_byte()
-        value = self.cpu.registers.read(dest)
-        new_value = self.cpu.alu.rotate_right(value)
-        self.cpu.registers.write(dest, new_value)
+        reg, value = self._reg()
+        self._write(reg, self.cpu.alu.rotate_right(value))
+
     def shl(self):
-        """
-        Shift the value in the register n bits to the left.
-        """
-        dest = self.cpu.fetch_byte()
-        shift_value = self.cpu.fetch_byte()
-        dest_value = self.cpu.registers.read(dest)
-        new_value = self.cpu.alu.shift_left(dest_value, shift_value )
-        self.cpu.registers.write(dest, new_value)
+        reg, value, n = self._reg_imm()
+        self._write(reg, self.cpu.alu.shift_left(value, n))
+
     def shr(self):
-        """
-        Shift the value in the register n bits to the right.
-        """
-        dest = self.cpu.fetch_byte()
-        shift_value = self.cpu.fetch_byte()
-        dest_value = self.cpu.registers.read(dest)
-        new_value = self.cpu.alu.shift_right(dest_value, shift_value )
-        self.cpu.registers.write(dest, new_value)
+        reg, value, n = self._reg_imm()
+        self._write(reg, self.cpu.alu.shift_right(value, n))
+
+    # --- Compare (sets flags in F only) ------------------------------------------
 
     def cmp(self):
-        """
-        Compare the value in reg_1 with the value in reg_2.
-        """
-        reg_1 = self.cpu.fetch_byte()
-        reg_2 = self.cpu.fetch_byte()
-        value_1 = self.cpu.registers.read(reg_1)
-        value_2 = self.cpu.registers.read(reg_2)
+        _, a, b = self._reg_reg()
+        self.cpu.alu.compare(a, b)
 
-        self.cpu.alu.compare(value_1, value_2)  # sets flags in F
     def cmpi(self):
-        """
-        Compare the value in reg_1 with the value in reg_2.
-        """
-        reg = self.cpu.fetch_byte()
-        value = self.cpu.fetch_byte()
-        reg_value = self.cpu.registers.read(reg)
+        _, a, b = self._reg_imm()
+        self.cpu.alu.compare(a, b)
 
-        self.cpu.alu.compare(reg_value, value)  # sets flags in F
     def cmpa(self):
-        """
-        Compare the value in reg_1 with the value in reg_2.
-        """
-        reg = self.cpu.fetch_byte()
-        address = self.cpu.fetch_byte()
-        reg_value = self.cpu.registers.read(reg)
-        address_value = self.cpu.ram.read(address)
+        _, a, b = self._reg_mem()
+        self.cpu.alu.compare(a, b)
 
-        self.cpu.alu.compare(reg_value, address_value)  # sets flags in F
+    # --- Jumps -------------------------------------------------------------------
 
     def jmp(self):
-        """
-        Jump to the specified address.
-        """
-        address = self.cpu.fetch_byte()  # addresses are 1 byte, like the other jumps
-        self.cpu.registers.write(Registers.PC, address)
+        """jmp, mem"""
+        self._jump(self.cpu.fetch_byte())
+
     def jc(self):
-        """
-        Jump to the specified address if the carry flag is set.
-        """
-        address = self.cpu.fetch_byte()
-        flags = self.cpu.registers.read(Registers.F)
-        if flags & Flags.CARRY:
-            self.cpu.registers.write(Registers.PC, address)
+        """jc, mem: jump if carry is set."""
+        self._jump_if_flag(Flags.CARRY, True)
+
     def jnc(self):
-        """
-        Jump to the specified address if the carry flag is not set.
-        """
-        address = self.cpu.fetch_byte()
-        flags = self.cpu.registers.read(Registers.F)
-        if not flags & Flags.CARRY:
-            self.cpu.registers.write(Registers.PC, address)
-    def je(self):
-        """
-        Jump to the specified address if the value in the register is equal to the specified value.
-        """
-        reg = self.cpu.fetch_byte()
-        value = self.cpu.fetch_byte()
-        address = self.cpu.fetch_byte()
-        if self.cpu.registers.read(reg) == value:
-            self.cpu.registers.write(Registers.PC, address)
+        """jnc, mem: jump if carry is clear."""
+        self._jump_if_flag(Flags.CARRY, False)
+
     def jz(self):
-        """
-        Jump to the specified address if the value in the register is equal 0.
-        """
-        reg = self.cpu.fetch_byte()
-        address = self.cpu.fetch_byte()
-        if self.cpu.registers.read(reg) == 0:
-            self.cpu.registers.write(self.cpu.registers.PC, address)
+        """jz, reg, mem: jump if the register is 0."""
+        self._jump_if_zero(True)
 
     def jnz(self):
-        """
-        Jump to the specified address if the value in the register is not equal 0.
-        """
-        reg = self.cpu.fetch_byte()
-        address = self.cpu.fetch_byte()
-        if self.cpu.registers.read(reg) != 0:
-            self.cpu.registers.write(self.cpu.registers.PC, address)
+        """jnz, reg, mem: jump if the register is not 0."""
+        self._jump_if_zero(False)
+
+    def je(self):
+        """je, reg, imm, mem: jump if reg == imm."""
+        self._jump_if_compare(operator.eq)
+
     def ja(self):
-        """
-        Jump to the specified address if the value in the register is greater than the specified value.
-        """
-        reg = self.cpu.fetch_byte()
-        value = self.cpu.fetch_byte()
-        address = self.cpu.fetch_byte()
-        if self.cpu.registers.read(reg) > value:
-            self.cpu.registers.write(Registers.PC, address)
+        """ja, reg, imm, mem: jump if reg > imm."""
+        self._jump_if_compare(operator.gt)
+
     def jae(self):
-        """
-        Jump to the specified address if the value in the register is greater than or equal the specified value.
-        """
-        reg = self.cpu.fetch_byte()
-        value = self.cpu.fetch_byte()
-        address = self.cpu.fetch_byte()
-        if self.cpu.registers.read(reg) >= value:
-            self.cpu.registers.write(Registers.PC, address)
+        """jae, reg, imm, mem: jump if reg >= imm."""
+        self._jump_if_compare(operator.ge)
+
     def jb(self):
-        """
-        Jump to the specified address if the value in the  register is greater than the specified value.
-        """
-        reg = self.cpu.fetch_byte()
-        value = self.cpu.fetch_byte()
-        address = self.cpu.fetch_byte()
-        if self.cpu.registers.read(reg) < value:
-            self.cpu.registers.write(Registers.PC, address)
+        """jb, reg, imm, mem: jump if reg < imm."""
+        self._jump_if_compare(operator.lt)
+
     def jbe(self):
-        """
-        Jump to the specified address if the value in the  register is greater than or equal the specified value.
-        """
-        reg = self.cpu.fetch_byte()
-        value = self.cpu.fetch_byte()
-        address = self.cpu.fetch_byte()
-        if self.cpu.registers.read(reg) <= value:
-            self.cpu.registers.write(Registers.PC, address)
+        """jbe, reg, imm, mem: jump if reg <= imm."""
+        self._jump_if_compare(operator.le)
+
+    # --- Stack and subroutines -----------------------------------------------------
 
     def push(self):
-        """
-        Push a register value onto the stack.
-        """
-
-        reg = self.cpu.fetch_byte()
-        reg_value = self.cpu.registers.read(reg)
-        sp_value= self.cpu.registers.read(Registers.SP)
-        sp_value -= 1  # Decrement the stack pointer
-        self.cpu.ram.write(sp_value, reg_value)
-        self.cpu.registers.write(Registers.SP, sp_value)  # Decrement the stack pointer
+        """push, reg"""
+        _, value = self._reg()
+        self._push(value)
 
     def pushi(self):
-        """
-        Push a value onto the stack.
-        """
-
-        value = self.cpu.fetch_byte()
-        sp_value= self.cpu.registers.read(Registers.SP)
-        sp_value -= 1  # Decrement the stack pointer
-        self.cpu.ram.write(sp_value, value)
-        self.cpu.registers.write(Registers.SP, sp_value)  # Decrement the stack pointer
+        """pushi, imm"""
+        self._push(self.cpu.fetch_byte())
 
     def pusha(self):
-        """
-        Push an address value onto the stack.
-        """
-        address = self.cpu.fetch_byte()
-        ram_value = self.cpu.ram.read(address)
-        sp_value = self.cpu.registers.read(Registers.SP)
-        sp_value -= 1  # Decrement the stack pointer
-        if sp_value >= 0:
-            self.cpu.ram.write(sp_value, ram_value)
-
-        else:
-            raise IndexError(f"Stack pointer out of bounds: {sp_value}")
-
-        self.cpu.registers.write(Registers.SP, sp_value)
+        """pusha, mem: push RAM[mem]."""
+        self._push(self.cpu.ram.read(self.cpu.fetch_byte()))
 
     def pop(self):
-        """
-        Pop a value off the stack into a register.
-        """
+        """pop, reg"""
         reg = self.cpu.fetch_byte()
-        value = self.cpu.ram.read(self.cpu.registers.read(Registers.SP))
-        self.cpu.registers.write(reg, value)
-        sp_value = self.cpu.registers.read(Registers.SP)
-        sp_value += 1  # Increment the stack pointer
-        self.cpu.registers.write(Registers.SP, sp_value)
+        self._write(reg, self._pop())
 
     def call(self):
-        # Get the address to jump to
-        address = self.cpu.fetch()
-
-        # Push the return address onto the stack
-        return_address = self.cpu.registers.read(Registers.PC)
-        sp_value = self.cpu.registers.read(Registers.SP)
-        sp_value -= 1  # Decrement the stack pointer by 1
-        if sp_value >= 0:
-            self.cpu.ram.write(sp_value, return_address)
-        else:
-            raise IndexError(f"Stack pointer out of bounds: {sp_value}")
-        self.cpu.registers.write(Registers.SP, sp_value)
-
-        # Jump to the function address
-        self.cpu.registers.write(Registers.PC, address)
-
+        """call, mem: push the return address and jump."""
+        address = self.cpu.fetch_byte()
+        self._push(self.cpu.registers.read(Registers.PC))
+        self._jump(address)
 
     def ret(self):
-        """
-        Return from a function call.
-        """
-        # Pop the return address from the stack
-        sp_value = self.cpu.registers.read(Registers.SP)
-        return_address = self.cpu.ram.read(sp_value)
-        sp_value += 1  # Increment the stack pointer
-        self.cpu.registers.write(Registers.SP, sp_value)
-
-        # Jump to the return address
-        self.cpu.registers.write(Registers.PC, return_address)
-
+        """ret: pop the return address and jump to it."""
+        self._jump(self._pop())
 
     def hlt(self):
-        """
-        Halt the CPU.
-        """
+        """Halt the CPU."""
         self.cpu.halted = True
