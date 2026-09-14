@@ -54,16 +54,16 @@ class Decoder:
             0x27: self.jz,
             0x28: self.jnz,
             0x29: self.ja,
-            0x30: self.jae,
-            0x31: self.jb,
-            0x32: self.jbe,
+            0x2a: self.jae,
+            0x2b: self.jb,
+            0x2c: self.jbe,
 
-            0x33: self.push,
-            0x34: self.pushi,
-            0x35: self.pusha,
-            0x36: self.pop,
-            0x37: self.call,
-            0x38: self.ret,
+            0x2d: self.push,
+            0x2e: self.pushi,
+            0x2f: self.pusha,
+            0x30: self.pop,
+            0x31: self.call,
+            0x32: self.ret,
 
             0xff: self.hlt,
         }
@@ -77,6 +77,7 @@ class Decoder:
     # --- Operand helpers -------------------------------------------------------
     # Each reads an instruction's operands from ROM and returns
     # (register index, register value, second value).
+    # Registers and immediates are 1 byte; addresses are 2 bytes (fetch_word).
 
     def _reg(self):
         reg = self.cpu.fetch_byte()
@@ -92,7 +93,7 @@ class Decoder:
 
     def _reg_mem(self):
         reg, value = self._reg()
-        return reg, value, self.cpu.ram.read(self.cpu.fetch_byte())
+        return reg, value, self.cpu.ram.read(self.cpu.fetch_word())
 
     # --- Stack and jump helpers ------------------------------------------------
 
@@ -111,19 +112,19 @@ class Decoder:
         self.cpu.registers.write(Registers.PC, address)
 
     def _jump_if_flag(self, flag, is_set):
-        address = self.cpu.fetch_byte()
+        address = self.cpu.fetch_word()
         if bool(self.cpu.registers.read(Registers.F) & flag) == is_set:
             self._jump(address)
 
     def _jump_if_zero(self, is_zero):
         _, value = self._reg()
-        address = self.cpu.fetch_byte()
+        address = self.cpu.fetch_word()
         if (value == 0) == is_zero:
             self._jump(address)
 
     def _jump_if_compare(self, compare):
         _, value, immediate = self._reg_imm()
-        address = self.cpu.fetch_byte()
+        address = self.cpu.fetch_word()
         if compare(value, immediate):
             self._jump(address)
 
@@ -153,7 +154,7 @@ class Decoder:
     def st(self):
         """st, S, mem: store register S into RAM[mem]."""
         _, value = self._reg()
-        self.cpu.ram.write(self.cpu.fetch_byte(), value)
+        self.cpu.ram.write(self.cpu.fetch_word(), value)
 
     # --- Arithmetic and logic --------------------------------------------------
     # reg, reg forms write the result to A; reg, imm and reg, mem forms write it
@@ -285,7 +286,7 @@ class Decoder:
 
     def jmp(self):
         """jmp, mem"""
-        self._jump(self.cpu.fetch_byte())
+        self._jump(self.cpu.fetch_word())
 
     def jc(self):
         """jc, mem: jump if carry is set."""
@@ -336,7 +337,7 @@ class Decoder:
 
     def pusha(self):
         """pusha, mem: push RAM[mem]."""
-        self._push(self.cpu.ram.read(self.cpu.fetch_byte()))
+        self._push(self.cpu.ram.read(self.cpu.fetch_word()))
 
     def pop(self):
         """pop, reg"""
@@ -344,14 +345,18 @@ class Decoder:
         self._write(reg, self._pop())
 
     def call(self):
-        """call, mem: push the return address and jump."""
-        address = self.cpu.fetch_byte()
-        self._push(self.cpu.registers.read(Registers.PC))
+        """call, mem: push the 16-bit return address (high byte, then low byte) and jump."""
+        address = self.cpu.fetch_word()
+        return_address = self.cpu.registers.read(Registers.PC)
+        self._push(return_address >> 8)
+        self._push(return_address & 0xFF)
         self._jump(address)
 
     def ret(self):
-        """ret: pop the return address and jump to it."""
-        self._jump(self._pop())
+        """ret: pop the 16-bit return address (low byte, then high byte) and jump to it."""
+        low_byte = self._pop()
+        high_byte = self._pop()
+        self._jump((high_byte << 8) | low_byte)
 
     def hlt(self):
         """Halt the CPU."""
