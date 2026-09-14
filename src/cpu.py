@@ -25,18 +25,8 @@ class CPU:
         # Fetch an 8-bit value from memory
         return self.fetch()
 
-    def fetch_address(self):
-        """
-        Fetch a 8-bit address from RAM.
-        """
-        pc = self.registers.read(Registers.PC)
-        address = self.ram.read(pc)
-        self.registers.write(Registers.PC, pc+1)
-        return address
     def fetch(self):
         pc = self.registers.read(Registers.PC)
-        # print('pc in fetch', pc)
-        # print('sp in fetch', self.registers.read(Registers.SP))
         opcode = self.rom.read(pc)
         self.registers.write(Registers.PC, pc+1)
         return opcode
@@ -48,8 +38,9 @@ class CPU:
         instruction()
 
     def run(self):
-        pc = self.registers.registers[Registers.PC]
+        """
+        Run one fetch-decode-execute cycle. Call repeatedly until `halted` is True.
+        """
         opcode = self.fetch()
-        #print(f"Executing opcode: {opcode:02x} at address: {pc:02x}")  # Add this line
         instruction = self.decoder.decode(opcode)
         self.execute(instruction)

@@ -100,7 +100,6 @@ class Decoder:
         dest = self.cpu.fetch_byte()
         address = self.cpu.fetch_byte()
         value = self.cpu.ram.read(address)
-        print('DESTINATION in LOAD', dest)
         self.cpu.registers.write(dest, value)
     def st(self):
         """
@@ -486,16 +485,6 @@ class Decoder:
         self.cpu.ram.write(sp_value, value)
         self.cpu.registers.write(Registers.SP, sp_value)  # Decrement the stack pointer
 
-    # def pusha(self):
-    #     """
-    #     Push an address value onto the stack.
-    #     """
-    #     address = self.cpu.fetch_byte()
-    #     ram_value = self.cpu.ram.read(address)
-    #     sp_value= self.cpu.registers.read(Registers.SP)
-    #     sp_value -= 1  # Decrement the stack pointer
-    #     self.cpu.ram.write(sp_value, ram_value)
-
     def pusha(self):
         """
         Push an address value onto the stack.
@@ -538,7 +527,6 @@ class Decoder:
         self.cpu.registers.write(Registers.SP, sp_value)
 
         # Jump to the function address
-        # Jump to the function address (write low byte to PC register)
         self.cpu.registers.write(Registers.PC, address)
 
 
@@ -549,10 +537,9 @@ class Decoder:
         # Pop the return address from the stack
         sp_value = self.cpu.registers.read(Registers.SP)
         return_address = self.cpu.ram.read(sp_value)
-        sp_value += 1  # Increment the stack pointer by 2 for a word
+        sp_value += 1  # Increment the stack pointer
         self.cpu.registers.write(Registers.SP, sp_value)
 
-        print('return_address', return_address)
         # Jump to the return address
         self.cpu.registers.write(Registers.PC, return_address)
 
