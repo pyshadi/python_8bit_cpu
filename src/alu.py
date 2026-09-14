@@ -1,7 +1,33 @@
+from src.registers import Registers
+
+
+class Flags:
+    ZERO = 0x01
+    CARRY = 0x02
+    OVERFLOW = 0x04
+    SIGN = 0x08
+
+
 class ALU:
-    def __init__(self, bit_width=8):
+    def __init__(self, bit_width=8, registers=None):
         self.mask = (1 << bit_width) - 1
-        self.flags = 0
+        # When attached to a CPU, flags live in the F register so jumps can see them.
+        self.registers = registers
+        self._flags = 0
+
+    @property
+    def flags(self):
+        if self.registers is not None:
+            return self.registers.read(Registers.F)
+        return self._flags
+
+    @flags.setter
+    def flags(self, value):
+        if self.registers is not None:
+            self.registers.write(Registers.F, value)
+        else:
+            self._flags = value
+
     def set_flag(self, flag):
         self.flags |= flag
     def clear_flag(self, flag):
@@ -9,7 +35,7 @@ class ALU:
 
     def add(self, a, b):
         result = a + b
-        overflow_flag = (result & (1 << self.mask.bit_length())) != 0
+        overflow_flag = result > self.mask
         result &= self.mask
         self.clear_flag(0x01)  # clear zero flag
         self.clear_flag(0x02)  # clear carry flag
@@ -33,7 +59,7 @@ class ALU:
 
     def mul(self, a, b):
         result = a * b
-        overflow_flag = (result & (1 << self.mask.bit_length())) != 0
+        overflow_flag = result > self.mask
         result &= self.mask
         self.clear_flag(0x01)  # clear zero flag
         self.clear_flag(0x02)  # clear carry flag
@@ -47,6 +73,7 @@ class ALU:
             # Use Python's integer division to handle both signed and unsigned division
             result = int(a) // int(b)
             self.clear_flag(0x01)  # clear zero flag
+            self.clear_flag(0x02)  # clear carry flag
             if result == 0:
                 self.set_flag(0x01)  # set zero flag
             return result & self.mask
@@ -54,21 +81,21 @@ class ALU:
             raise ZeroDivisionError("attempt to divide by zero")
 
     def and_(self, a, b):
-        result = a & b
+        result = (a & b) & self.mask
         self.clear_flag(0x01)  # clear zero flag
         self.clear_flag(0x02)  # clear carry flag
         if result == 0:
             self.set_flag(0x01)  # set zero flag
         return result
     def or_(self, a, b):
-        result = a | b
+        result = (a | b) & self.mask
         self.clear_flag(0x01)  # clear zero flag
         self.clear_flag(0x02)  # clear carry flag
         if result == 0:
             self.set_flag(0x01)  # set zero flag
         return result
     def xor(self, a, b):
-        result = a ^ b
+        result = (a ^ b) & self.mask
         self.clear_flag(0x01)  # clear zero flag
         self.clear_flag(0x02)  # clear carry flag
         if result == 0:
@@ -82,21 +109,27 @@ class ALU:
             self.set_flag(0x01)  # set zero flag
         return result
     def shift_left(self, a, n):
+        width = self.mask.bit_length()
         result = (a << n) & self.mask
+        # carry is the last bit shifted out; nothing is left to shift out past the width
+        carry = 0 < n <= width and (a >> (width - n)) & 1
         self.clear_flag(0x01)  # clear zero flag
         self.clear_flag(0x02)  # clear carry flag
         if result == 0:
             self.set_flag(0x01)  # set zero flag
-        if a & (1 << (self.mask.bit_length() - n)):
+        if carry:
             self.set_flag(0x02)  # set carry flag
         return result
     def shift_right(self, a, n):
-        result = a >> n
+        result = (a >> n) & self.mask
+        carry = n > 0 and (a >> (n - 1)) & 1  # last bit shifted out
         self.clear_flag(0x01)  # clear zero flag
         self.clear_flag(0x02)  # clear carry flag
         if result == 0:
             self.set_flag(0x01)  # set zero flag
-        return result & self.mask
+        if carry:
+            self.set_flag(0x02)  # set carry flag
+        return result
 
     def arithmetic_shift_right(self, a):
         sign_bit = a & (1 << (self.mask.bit_length() - 1))
