@@ -190,14 +190,14 @@ class Decoder:
         reg_2 = self.cpu.fetch_byte()
         value_1 = self.cpu.registers.read(reg_1)
         value_2 = self.cpu.registers.read(reg_2)
-        result = self.cpu.alu.mul(value_1, value_2)
+        result = self.cpu.alu.div(value_1, value_2)
         self.cpu.registers.write(Registers.A, result)
     def divi(self):
         dest  = self.cpu.fetch_byte()
         value = self.cpu.fetch_byte()
         value_at_dest = self.cpu.registers.read(dest)
 
-        result = self.cpu.alu.mul(value, value_at_dest)
+        result = self.cpu.alu.div(value_at_dest, value)
         self.cpu.registers.write(dest, result)
     def diva(self):
 
@@ -206,7 +206,7 @@ class Decoder:
         dest_value = self.cpu.registers.read(dest)
         address_value = self.cpu.ram.read(address)
         result = self.cpu.alu.div(dest_value, address_value)
-        self.cpu.registers.write(Registers.A, result)
+        self.cpu.registers.write(dest, result)
     def inc(self):
         """
         Increment the value in the register by 1.
@@ -290,7 +290,7 @@ class Decoder:
         reg_2 = self.cpu.fetch_byte()
         value_1 = self.cpu.registers.read(reg_1)
         value_2 = self.cpu.registers.read(reg_2)
-        result = self.cpu.alu.xor_(value_1, value_2)
+        result = self.cpu.alu.xor(value_1, value_2)
         self.cpu.registers.write(Registers.A, result)
     def xori(self):
         """
@@ -299,7 +299,7 @@ class Decoder:
         dest = self.cpu.fetch_byte()
         value = self.cpu.fetch_byte()
         dest_value = self.cpu.registers.read(dest)
-        result = self.cpu.alu.xor_(dest_value, value)
+        result = self.cpu.alu.xor(dest_value, value)
         self.cpu.registers.write(dest, result)
     def xora(self):
         """
@@ -310,7 +310,7 @@ class Decoder:
 
         dest_value = self.cpu.registers.read(dest)
         address_value = self.cpu.ram.read(address)
-        result = self.cpu.alu.xor_(dest_value, address_value)
+        result = self.cpu.alu.xor(dest_value, address_value)
         self.cpu.registers.write(dest, result)
 
     def rtl(self):
@@ -382,7 +382,7 @@ class Decoder:
         """
         Jump to the specified address.
         """
-        address = self.cpu.fetch_word()
+        address = self.cpu.fetch_byte()  # addresses are 1 byte, like the other jumps
         self.cpu.registers.write(Registers.PC, address)
     def jc(self):
         """
@@ -402,12 +402,13 @@ class Decoder:
             self.cpu.registers.write(Registers.PC, address)
     def je(self):
         """
-        Jump to the specified address if the value in the first register is equal the specified value.
+        Jump to the specified address if the value in the register is equal to the specified value.
         """
-        address = self.cpu.fetch_byte()
+        reg = self.cpu.fetch_byte()
         value = self.cpu.fetch_byte()
-        if self.cpu.registers.read(self.cpu.registers.A) == value:
-            self.cpu.registers.write(self.cpu.registers.PC, address)
+        address = self.cpu.fetch_byte()
+        if self.cpu.registers.read(reg) == value:
+            self.cpu.registers.write(Registers.PC, address)
     def jz(self):
         """
         Jump to the specified address if the value in the register is equal 0.
@@ -433,7 +434,7 @@ class Decoder:
         value = self.cpu.fetch_byte()
         address = self.cpu.fetch_byte()
         if self.cpu.registers.read(reg) > value:
-            self.cpu.registers.write(reg, address)
+            self.cpu.registers.write(Registers.PC, address)
     def jae(self):
         """
         Jump to the specified address if the value in the register is greater than or equal the specified value.
@@ -442,7 +443,7 @@ class Decoder:
         value = self.cpu.fetch_byte()
         address = self.cpu.fetch_byte()
         if self.cpu.registers.read(reg) >= value:
-            self.cpu.registers.write(reg, address)
+            self.cpu.registers.write(Registers.PC, address)
     def jb(self):
         """
         Jump to the specified address if the value in the  register is greater than the specified value.
@@ -451,7 +452,7 @@ class Decoder:
         value = self.cpu.fetch_byte()
         address = self.cpu.fetch_byte()
         if self.cpu.registers.read(reg) < value:
-            self.cpu.registers.write(reg, address)
+            self.cpu.registers.write(Registers.PC, address)
     def jbe(self):
         """
         Jump to the specified address if the value in the  register is greater than or equal the specified value.
@@ -460,7 +461,7 @@ class Decoder:
         value = self.cpu.fetch_byte()
         address = self.cpu.fetch_byte()
         if self.cpu.registers.read(reg) <= value:
-            self.cpu.registers.write(reg, address)
+            self.cpu.registers.write(Registers.PC, address)
 
     def push(self):
         """
@@ -513,10 +514,11 @@ class Decoder:
 
     def pop(self):
         """
-        Pop a value off the stack.
+        Pop a value off the stack into a register.
         """
+        reg = self.cpu.fetch_byte()
         value = self.cpu.ram.read(self.cpu.registers.read(Registers.SP))
-        self.cpu.registers.write(Registers.A, value)
+        self.cpu.registers.write(reg, value)
         sp_value = self.cpu.registers.read(Registers.SP)
         sp_value += 1  # Increment the stack pointer
         self.cpu.registers.write(Registers.SP, sp_value)
