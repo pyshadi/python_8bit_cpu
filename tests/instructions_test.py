@@ -1,6 +1,7 @@
 import pytest
 
 from src.alu import Flags
+from src.decoder import StackOverflowError, StackUnderflowError
 from src.registers import Registers
 from tests.helpers import run_program
 
@@ -127,3 +128,37 @@ def test_pushi_and_pusha():
     cpu = run_program("pushi, 42\nmvi, B, 9\nst, B, 40\npusha, 40\npop, C\npop, D\nhlt")
     assert (reg(cpu, "C"), reg(cpu, "D")) == (9, 42)
     assert reg(cpu, "SP") == 255
+
+
+def test_inv():
+    cpu = run_program("mvi, B, 0b10100101\ninv, B\nhlt")
+    assert reg(cpu, "B") == 0b01011010
+    cpu = run_program("mvi, B, 255\ninv, B\nhlt")
+    assert reg(cpu, "B") == 0
+    assert reg(cpu, "F") == Flags.ZERO
+
+
+def test_sar_keeps_sign_and_sets_carry_from_shifted_bit():
+    cpu = run_program("mvi, B, 0b10000011\nsar, B\nhlt")
+    assert reg(cpu, "B") == 0b11000001
+    assert reg(cpu, "F") == Flags.CARRY
+    cpu = run_program("mvi, B, 0b00000100\nsar, B\nhlt")
+    assert reg(cpu, "B") == 0b00000010
+    assert reg(cpu, "F") == 0
+
+
+def test_stack_can_be_filled_and_emptied():
+    source = "pushi, 1\n" * 15 + "pop, A\n" * 15 + "hlt"
+    cpu = run_program(source, ram_size=16)  # SP starts at 15, so 15 bytes fit
+    assert reg(cpu, "SP") == 15
+
+
+def test_push_onto_full_stack_raises():
+    with pytest.raises(StackOverflowError):
+        run_program("pushi, 1\n" * 16 + "hlt", ram_size=16)
+
+
+@pytest.mark.parametrize("program", ["pop, A\nhlt", "ret"])
+def test_pop_or_ret_on_empty_stack_raises(program):
+    with pytest.raises(StackUnderflowError):
+        run_program(program)

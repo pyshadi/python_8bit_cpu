@@ -4,6 +4,14 @@ from src.alu import Flags
 from src.registers import Registers
 
 
+class StackOverflowError(IndexError):
+    pass
+
+
+class StackUnderflowError(IndexError):
+    pass
+
+
 class Decoder:
     def __init__(self, cpu):
         self.cpu = cpu
@@ -65,6 +73,9 @@ class Decoder:
             0x31: self.call,
             0x32: self.ret,
 
+            0x33: self.inv,
+            0x34: self.sar,
+
             0xff: self.hlt,
         }
 
@@ -97,14 +108,21 @@ class Decoder:
 
     # --- Stack and jump helpers ------------------------------------------------
 
+    # The stack grows down from the top of RAM. SP starts at ram.size - 1 (empty)
+    # and points at the most recently pushed byte.
+
     def _push(self, value):
         sp = self.cpu.registers.read(Registers.SP) - 1
-        self.cpu.ram.write(sp, value)  # raises IndexError on stack overflow
+        if sp < 0:
+            raise StackOverflowError(f"stack overflow: RAM of size {self.cpu.ram.size} is full")
+        self.cpu.ram.write(sp, value)
         self.cpu.registers.write(Registers.SP, sp)
 
     def _pop(self):
         sp = self.cpu.registers.read(Registers.SP)
-        value = self.cpu.ram.read(sp)  # raises IndexError on stack underflow
+        if sp >= self.cpu.ram.size - 1:
+            raise StackUnderflowError("stack underflow: pop or ret on an empty stack")
+        value = self.cpu.ram.read(sp)
         self.cpu.registers.write(Registers.SP, sp + 1)
         return value
 
@@ -267,6 +285,16 @@ class Decoder:
     def shr(self):
         reg, value, n = self._reg_imm()
         self._write(reg, self.cpu.alu.shift_right(value, n))
+
+    def inv(self):
+        """inv, reg: bitwise NOT."""
+        reg, value = self._reg()
+        self._write(reg, self.cpu.alu.not_(value))
+
+    def sar(self):
+        """sar, reg: arithmetic shift right by one bit, keeping the sign bit."""
+        reg, value = self._reg()
+        self._write(reg, self.cpu.alu.arithmetic_shift_right(value))
 
     # --- Compare (sets flags in F only) ------------------------------------------
 

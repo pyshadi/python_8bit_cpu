@@ -138,8 +138,8 @@ class ALU:
         self.clear_flag(0x02)  # clear carry flag
         if result == 0:
             self.set_flag(0x01)  # set zero flag
-        if sign_bit != 0:
-            self.set_flag(0x02)  # set carry flag
+        if a & 1:
+            self.set_flag(0x02)  # set carry flag: the bit shifted out
         return result
 
     def rotate_left(self, a):
