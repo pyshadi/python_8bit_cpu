@@ -1,3 +1,4 @@
+from src.alu import Flags
 from src.registers import Registers
 
 class Decoder:
@@ -211,14 +212,14 @@ class Decoder:
         Increment the value in the register by 1.
         """
         dest = self.cpu.fetch_byte()
-        value = self.cpu.registers.read(dest) + 1
+        value = self.cpu.alu.add(self.cpu.registers.read(dest), 1)
         self.cpu.registers.write(dest, value)
     def dec(self):
         """
         Decrement the value in the register by 1.
         """
         dest = self.cpu.fetch_byte()
-        value = self.cpu.registers.read(dest) - 1
+        value = self.cpu.alu.sub(self.cpu.registers.read(dest), 1)
         self.cpu.registers.write(dest, value)
 
     def andd(self):
@@ -356,9 +357,7 @@ class Decoder:
         value_1 = self.cpu.registers.read(reg_1)
         value_2 = self.cpu.registers.read(reg_2)
 
-        zero_flag, carry_flag, overflow_flag, sign_flag=self.cpu.alu.compare(value_1, value_2 )
-        new_value = (zero_flag << 3) | (carry_flag << 2) | (overflow_flag << 1) | sign_flag
-        self.cpu.registers.write(Registers.F, new_value)
+        self.cpu.alu.compare(value_1, value_2)  # sets flags in F
     def cmpi(self):
         """
         Compare the value in reg_1 with the value in reg_2.
@@ -367,9 +366,7 @@ class Decoder:
         value = self.cpu.fetch_byte()
         reg_value = self.cpu.registers.read(reg)
 
-        zero_flag, carry_flag, overflow_flag, sign_flag=self.cpu.alu.compare(reg_value, value)
-        new_value = (zero_flag << 3) | (carry_flag << 2) | (overflow_flag << 1) | sign_flag
-        self.cpu.registers.write(Registers.F, new_value)
+        self.cpu.alu.compare(reg_value, value)  # sets flags in F
     def cmpa(self):
         """
         Compare the value in reg_1 with the value in reg_2.
@@ -379,9 +376,7 @@ class Decoder:
         reg_value = self.cpu.registers.read(reg)
         address_value = self.cpu.ram.read(address)
 
-        zero_flag, carry_flag, overflow_flag, sign_flag=self.cpu.alu.compare(reg_value, address_value)
-        new_value = (zero_flag << 3) | (carry_flag << 2) | (overflow_flag << 1) | sign_flag
-        self.cpu.registers.write(Registers.F, new_value)
+        self.cpu.alu.compare(reg_value, address_value)  # sets flags in F
 
     def jmp(self):
         """
@@ -395,15 +390,15 @@ class Decoder:
         """
         address = self.cpu.fetch_byte()
         flags = self.cpu.registers.read(Registers.F)
-        if (flags & 0b0100) != 0:  # Check if the carry flag is set
+        if flags & Flags.CARRY:
             self.cpu.registers.write(Registers.PC, address)
     def jnc(self):
         """
-        Jump to the specified address if the carry flag is set.
+        Jump to the specified address if the carry flag is not set.
         """
         address = self.cpu.fetch_byte()
         flags = self.cpu.registers.read(Registers.F)
-        if (flags & 0b0100) == 0:  # Check if the carry flag is set
+        if not flags & Flags.CARRY:
             self.cpu.registers.write(Registers.PC, address)
     def je(self):
         """

@@ -1,7 +1,33 @@
+from src.registers import Registers
+
+
+class Flags:
+    ZERO = 0x01
+    CARRY = 0x02
+    OVERFLOW = 0x04
+    SIGN = 0x08
+
+
 class ALU:
-    def __init__(self, bit_width=8):
+    def __init__(self, bit_width=8, registers=None):
         self.mask = (1 << bit_width) - 1
-        self.flags = 0
+        # When attached to a CPU, flags live in the F register so jumps can see them.
+        self.registers = registers
+        self._flags = 0
+
+    @property
+    def flags(self):
+        if self.registers is not None:
+            return self.registers.read(Registers.F)
+        return self._flags
+
+    @flags.setter
+    def flags(self, value):
+        if self.registers is not None:
+            self.registers.write(Registers.F, value)
+        else:
+            self._flags = value
+
     def set_flag(self, flag):
         self.flags |= flag
     def clear_flag(self, flag):

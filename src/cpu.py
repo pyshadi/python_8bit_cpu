@@ -8,7 +8,7 @@ class CPU:
         self.rom = rom
         self.ram = ram
         self.registers = Registers()
-        self.alu = ALU(bit_width)
+        self.alu = ALU(bit_width, self.registers)
         self.decoder = Decoder(self)
         self.halted = False
 
