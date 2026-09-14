@@ -83,7 +83,8 @@ Syntax rules:
 - Instruction, operands, and labels are separated by commas.
 - <code>;</code> starts a comment, either on its own line or after an instruction.
 - Mnemonics and register names are case-insensitive.
-- Numbers can be decimal, hex (<code>0x10</code>), binary (<code>0b101</code>) or octal (<code>0o17</code>), and must fit in a byte (0–255).
+- Numbers can be decimal, hex (<code>0x10</code>), binary (<code>0b101</code>) or octal (<code>0o17</code>), Immediate values must fit in a byte (0–255); addresses and labels must fit in 16 bits (0–65535).
+- Each operand must be the right kind: a register where the instruction expects a register, and a number or label everywhere else.
 
 The assembler raises an <code>AssemblerError</code> (a <code>ValueError</code>) with the line number for:
 - unknown instructions
@@ -96,7 +97,7 @@ Finally, the method returns the bytecode list, which can be loaded into the comp
 
 ## Instruction Set
 
-All addresses (<code>mem</code>) are one byte.
+Registers (<code>reg</code>, <code>D</code>, <code>S</code>) and immediate values (<code>imm</code>) are encoded as one byte. Addresses (<code>mem</code>) are two bytes, low byte first, so programs and RAM can use the full 16-bit address space. <code>CALL</code> pushes its 16-bit return address as two stack bytes.
 
 | Mnemonic | Opcode | Operands | Description |
 | --- | --- | --- | --- |
@@ -154,15 +155,15 @@ All addresses (<code>mem</code>) are one byte.
 | JZ | 0x27 | reg, mem | Jump to a memory location if register data is zero |
 | JNZ | 0x28 | reg, mem | Jump to a memory location if register data is not zero |
 | JA | 0x29 | reg, imm, mem | Jump to a memory location if register data is greater than immediate value |
-| JAE | 0x30 | reg, imm, mem | Jump to a memory location if register data is greater than or equal to immediate value |
-| JB | 0x31 | reg, imm, mem | Jump to a memory location if register data is smaller than immediate value |
-| JBE | 0x32 | reg, imm, mem | Jump to a memory location if register data is smaller than or equal to immediate value |
-| PUSH | 0x33 | reg | Push data from a register onto the stack |
-| PUSHI | 0x34 | imm | Push immediate data onto the stack |
-| PUSHA | 0x35 | mem | Push data from a memory location onto the stack |
-| POP | 0x36 | reg | Pop data from the stack into a register |
-| CALL | 0x37 | mem | Call a subroutine at a memory location |
-| RET | 0x38 | None | Return from a subroutine |
+| JAE | 0x2A | reg, imm, mem | Jump to a memory location if register data is greater than or equal to immediate value |
+| JB | 0x2B | reg, imm, mem | Jump to a memory location if register data is smaller than immediate value |
+| JBE | 0x2C | reg, imm, mem | Jump to a memory location if register data is smaller than or equal to immediate value |
+| PUSH | 0x2D | reg | Push data from a register onto the stack |
+| PUSHI | 0x2E | imm | Push immediate data onto the stack |
+| PUSHA | 0x2F | mem | Push data from a memory location onto the stack |
+| POP | 0x30 | reg | Pop data from the stack into a register |
+| CALL | 0x31 | mem | Call a subroutine at a memory location |
+| RET | 0x32 | None | Return from a subroutine |
 | HLT | 0xFF | None | Halt the CPU |
 
 ## Example assembly program:
@@ -190,4 +191,5 @@ CI runs the tests and <code>main.py</code> on Python 3.9–3.13 for every pull r
 | <code>tests/registers_test.py</code> | Register widths, wrap-around, and flags in the F register |
 | <code>tests/instructions_test.py</code> | Instruction behavior: jumps, stack, call/ret, XOR and DIV |
 | <code>tests/assembler_test.py</code> | Assembler syntax, labels, comments, and error handling |
+| <code>tests/addresses_test.py</code> | 16-bit addresses: RAM above 255, programs larger than 256 bytes, far jumps and calls |
 | <code>tests/cpu_test.py</code> | End-to-end programs |
