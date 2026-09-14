@@ -1,5 +1,7 @@
 # python_8bit_cpu
 
+[![CI](https://github.com/pyshadi/python_8bit_cpu/actions/workflows/ci.yml/badge.svg)](https://github.com/pyshadi/python_8bit_cpu/actions/workflows/ci.yml)
+
 This is a simple (in progress) CPU simulator, which mimics the behavior of a computer's CPU. <br><br><br>
 ![UML Diagram](assets/img.png "UML-Code Structure")
 <br>
@@ -179,7 +181,8 @@ From parent directory run main as module: <code>python3 -m main</code> or run it
 The test_cpu function assembles a small program that stores a value in RAM, loads it back into another register, adds to it, and halts. After the program finishes running, the function prints out the values of the CPU's registers.<br>
 
 ### Unit tests
-From parent directory run the test suite with pytest: <code>python3 -m pytest</code>
+Install the test dependencies with <code>python3 -m pip install -r requirements-dev.txt</code>, then from the parent directory run the test suite: <code>python3 -m pytest</code><br>
+CI runs the tests and <code>main.py</code> on Python 3.9–3.13 for every pull request and every push to <code>main</code>.
 
 | File | Covers |
 | --- | --- |
