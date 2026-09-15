@@ -18,6 +18,7 @@ from src.trace import StopReason, format_effect
 
 TRACE_LIMIT = 200             # most recent entries kept for each trace view
 HISTORY_LIMIT = 1000          # instructions and edits that Back and rewind can undo
+OUTPUT_LIMIT = 20_000         # most recent characters of program output sent to the page
 RAM_SIZES = (1024, 4096, 65536)
 _ASSEMBLER_LINE = re.compile(r"^line (\d+): (.*)$", re.DOTALL)
 
@@ -235,11 +236,13 @@ class Session:
             registers = list(self.cpu.registers.registers)
             cycles = self.cpu.cycles
             ram = bytes(self.cpu.ram.memory)
+            output_text = "".join(self.cpu.output)
         else:
             registers = [0] * len(Registers.NAMES)
             registers[Registers.SP] = self.ram_size - 1
             cycles = 0
             ram = bytes(self.ram_size)
+            output_text = ""
 
         current_line, next_instruction, preview = None, None, None
         if self.program is not None and self.status in ("ready", "paused", "break"):
@@ -289,6 +292,7 @@ class Session:
                 "return_cells": sorted(a for a in self.return_cells if a >= sp),
                 "last_writes": self.last_ram_writes,
             },
+            "output": {"text": output_text[-OUTPUT_LIMIT:], "truncated": len(output_text) > OUTPUT_LIMIT},
             "history": {
                 "size": len(self._history),
                 "rewind_from": cycles - steps_in_history + 1 if steps_in_history else None,
@@ -407,6 +411,7 @@ class Session:
             "jumped": record.jumped,
             "halted": record.halted,
             "alu": alu_calls,
+            "output": record.output,
         }
 
     def _flush_trace(self):

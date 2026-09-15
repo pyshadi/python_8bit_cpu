@@ -7,4 +7,5 @@ loop:   shr, B, 1        ; the lowest bit moves into carry
         inc, C
 skip:   dec, D
         jnz, D, loop
+        out, C           ; print the count
         hlt

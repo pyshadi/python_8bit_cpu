@@ -87,6 +87,20 @@ def test_missing_file():
     assert err.startswith("cannot read does/not/exist.asm")
 
 
+def test_run_prints_program_output():
+    hello = str(Path(__file__).parent.parent / "examples" / "hello.asm")
+    status, out, _ = run_cli("run", hello)
+    assert status == 0
+    assert "Output:\nHELLO\n1\n2\n3\nHalted after" in out
+
+
+def test_trace_shows_output_effect(tmp_path):
+    program = tmp_path / "print.asm"
+    program.write_text("mvi, A, 9\nout, A\nhlt\n")
+    _, out, _ = run_cli("run", str(program), "--trace")
+    assert line_for_cycle(out, 2).endswith("out, A            output '9\\n'")
+
+
 def test_disasm():
     status, out, _ = run_cli("disasm", FIBONACCI)
     assert status == 0

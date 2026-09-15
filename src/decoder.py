@@ -76,6 +76,9 @@ class Decoder:
             0x33: self.inv,
             0x34: self.sar,
 
+            0x35: self.out,
+            0x36: self.outc,
+
             0xff: self.hlt,
         }
 
@@ -295,6 +298,18 @@ class Decoder:
         """sar, reg: arithmetic shift right by one bit, keeping the sign bit."""
         reg, value = self._reg()
         self._write(reg, self.cpu.alu.arithmetic_shift_right(value))
+
+    # --- Output ------------------------------------------------------------------
+
+    def out(self):
+        """out, reg: print the register's value as a decimal number on its own line."""
+        _, value = self._reg()
+        self.cpu.output.append(f"{value}\n")
+
+    def outc(self):
+        """outc, reg: print the register's value as a character (e.g. 72 prints H)."""
+        _, value = self._reg()
+        self.cpu.output.append(chr(value))
 
     # --- Compare (sets flags in F only) ------------------------------------------
 

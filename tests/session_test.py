@@ -280,7 +280,7 @@ def test_preview_shows_the_next_instruction_without_running_it():
     assert state["next"]["operands"] == [["r", 0], ["r", 1]]
     assert state["preview"] == {"registers": {"A": 1, "F": 0}, "ram": [], "next_address": 0x1B,
                                 "jumped": False, "halted": False,
-                                "alu": [{"op": "add", "args": [0, 1], "result": 1}]}
+                                "alu": [{"op": "add", "args": [0, 1], "result": 1}], "output": ""}
     assert session.state() == state
 
     call_preview = loaded().run(max_steps=4)["state"]["preview"]  # next: call, next
@@ -307,6 +307,38 @@ def test_preview_records_exactly_which_alu_operations_run(source, steps, expecte
     assert preview["alu"] == expected_alu
     # recording is temporary: the CPU keeps its real ALU
     assert type(session.cpu.alu).__name__ == "ALU"
+
+
+def test_program_output_in_state_preview_and_trace_and_undone_by_back():
+    session = loaded("mvi, A, 42\nout, A\nmvi, B, 72\noutc, B\nhlt")
+    session.step()
+    assert session.state()["preview"]["output"] == "42\n"
+    session.step()
+    result = session.step()
+    assert result["state"]["output"] == {"text": "42\n", "truncated": False}
+    session.run()
+    assert session.state()["output"]["text"] == "42\nH"
+    trace_effects = [entry["effect"] for entry in session.reset()["trace"]]
+    assert trace_effects == [] and session.state()["output"]["text"] == ""
+
+    session.run()
+    session.back()  # undo hlt
+    session.back()  # undo outc
+    assert session.state()["output"]["text"] == "42\n"
+    session.rewind(2)  # before out, A
+    assert session.state()["output"]["text"] == ""
+
+
+def test_output_trace_effect():
+    trace = loaded("mvi, A, 7\nout, A\nhlt").run()["trace"]
+    assert trace[1]["effect"] == "output '7\\n'"
+
+
+def test_long_output_is_truncated_to_the_most_recent_text():
+    session = loaded("mvi, A, 65\nloop: outc, A\njmp, loop")
+    session.run(max_steps=2 * 25_000)
+    output = session.state()["output"]
+    assert output["truncated"] and len(output["text"]) == 20_000 and set(output["text"]) == {"A"}
 
 
 def test_dashboard_manifest_lists_every_module_and_example():

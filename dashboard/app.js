@@ -28,6 +28,7 @@ const el = {
   programName: $("programName"), progNew: $("prog-new"), progDuplicate: $("prog-duplicate"),
   progOpen: $("prog-open"), progDownload: $("prog-download"), progDelete: $("prog-delete"), progFile: $("prog-file"),
   progShare: $("prog-share"), themeToggle: $("themeToggle"), examplesGallery: $("examplesGallery"),
+  output: $("output"), outputMeta: $("outputMeta"),
 };
 
 // ---------- Per-viewer storage (best effort) ----------
@@ -420,11 +421,24 @@ const canEdit = () => ready && !running && !!(state && state.program);
 function render() {
   renderTransport();
   renderRegisters();
+  renderOutput();
   renderDataPath();
   renderMemory();
   renderTrace();
   renderMarks();
   renderStatus();
+}
+
+function renderOutput() {
+  const output = state && state.output ? state.output : { text: "", truncated: false };
+  if (el.output.textContent !== output.text) {
+    el.output.textContent = output.text;
+    el.output.scrollTop = el.output.scrollHeight;
+  }
+  const lines = output.text ? output.text.split("\n").length - (output.text.endsWith("\n") ? 1 : 0) : 0;
+  el.outputMeta.textContent = output.text
+    ? `${output.truncated ? "last " : ""}${lines} ${lines === 1 ? "line" : "lines"}`
+    : "";
 }
 
 function renderTransport() {
@@ -537,6 +551,7 @@ function datapathModel(next, preview, registers) {
       case "pop": model.b = memory(registers[SP]); break;
       case "ret": model.b = memory(registers[SP], 4, preview.next_address); break;
       case "call": case "jmp": model.b = immediate(targetOperand[1], 4); break;
+      case "out": case "outc": model.b = regSource(ops[0][1]); break;
       default: break; // nop, hlt
     }
     model.transfer = !!model.b;
@@ -546,6 +561,7 @@ function datapathModel(next, preview, registers) {
     .map(([name, value]) => ({ name, value, width: name === "SP" ? 4 : 2 }));
   model.flags = "F" in writes ? writes.F : null;
   model.ramWrites = preview.ram || [];
+  model.output = preview.output || "";
   model.pcLoad = preview.jumped ? preview.next_address : null;
   return model;
 }
@@ -568,6 +584,7 @@ function drawDatapath(model, next, registers) {
 
   const pcLoad = !!(model && model.pcLoad !== null);
   const ramWrite = !!(model && model.ramWrites.length);
+  const outputLive = !!(model && model.output);
 
   // --- Fetch and decode: PC addresses ROM, ROM feeds the decoder ---
   add(`<rect class="${pcLoad ? "box act" : "box"}" x="40" y="16" width="124" height="44" rx="2"/>`);
@@ -726,7 +743,7 @@ function drawDatapath(model, next, registers) {
   text(712, 364, flagsLive ? "en live" : "en", "flags");
 
   // --- Result bus: up the left rail to registers and PC, up the right rail to RAM ---
-  const result = !!(model && (model.destinations.length || ramWrite || pcLoad));
+  const result = !!(model && (model.destinations.length || ramWrite || pcLoad || outputLive));
   wire("M440 374 V400", result && aluUsed);
   wire("M14 406 H806", result, " bus");
   let resultText = "";
@@ -735,13 +752,19 @@ function drawDatapath(model, next, registers) {
     if (pcLoad) resultText = value(model.pcLoad, 4);
     else if (main) resultText = value(main.value, main.width);
     else if (ramWrite) resultText = value(model.ramWrites[0][1], 2);
+    else if (outputLive) resultText = JSON.stringify(model.output);
     else if (model.destinations.length) resultText = value(model.destinations[0].value, model.destinations[0].width);
   }
   text(450, 396, cls("lbl", result), "Result Bus");
   text(450, 426, "lv", resultText);
 
-  wire("M806 406 V123", ramWrite, " bus");
+  // Right rail: the result bus rising to RAM writes and the output device
+  wire("M806 406 V123", ramWrite || outputLive, " bus");
   wire("M806 123 H786", ramWrite);
+  add(`<rect class="${outputLive ? "box act" : "box"}" x="660" y="236" width="124" height="44" rx="2"/>`);
+  text(670, 254, outputLive ? "bl" : "bl dim", "OUTPUT");
+  text(670, 272, outputLive ? "bv hot" : "bv", outputLive ? `← ${JSON.stringify(model.output)}` : "");
+  wire("M806 258 H786", outputLive);
 
   return svg.join("");
 }
@@ -756,6 +779,7 @@ function renderDataPath() {
     const route = model.op ? `the ALU performs ${model.op}` : model.test ? `the decoder tests ${model.test.condition.replace(" ?", "")}, ${model.test.taken ? "taken" : "not taken"}` : model.transfer ? "the decoder transfers the value directly" : "no data moves";
     const writes = [...model.destinations.map((d) => `${d.name} ← ${hex(d.value, d.width)}`), ...model.ramWrites.map(([a, v]) => `RAM ${hex(a, 4)} ← ${hex(v, 2)}`)];
     if (model.pcLoad !== null) writes.push(`PC ← ${hex(model.pcLoad, 4)}`);
+    if (model.output) writes.push(`output ${JSON.stringify(model.output)}`);
     summary = `Data path for ${state.next.text}: ${route}${writes.length ? "; writes " + writes.join(", ") : ""}`;
   }
   el.datapath.setAttribute("aria-label", summary);

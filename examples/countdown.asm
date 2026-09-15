@@ -1,5 +1,6 @@
-; countdown: count A down from 10 to 0
+; countdown: print A while counting down from 10 to 1
         mvi, A, 10
-loop:   dec, A
+loop:   out, A
+        dec, A
         jnz, A, loop
         hlt

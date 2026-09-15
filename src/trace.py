@@ -19,6 +19,7 @@ class StepRecord:
     ram_writes: Dict[int, Tuple[int, int]]       # RAM address -> (old, new)
     next_address: int                            # PC after the instruction
     halted: bool
+    output: str = ""                             # text printed by out/outc
 
     @property
     def jumped(self):
@@ -47,6 +48,7 @@ class Snapshot:
     ram: Tuple[int, ...]
     halted: bool
     cycles: int
+    output: Tuple[str, ...] = ()
 
 
 # --- Formatting ------------------------------------------------------------------
@@ -72,6 +74,8 @@ def format_effect(record, labels=None):
         parts.append(f"taken → {target}" if record.jumped else "not taken")
     elif record.jumped:
         parts.append(f"PC ← {target}")
+    if record.output:
+        parts.append(f"output {record.output!r}")
     if record.halted:
         parts.append("halted")
     return " · ".join(parts)

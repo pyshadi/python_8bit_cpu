@@ -146,6 +146,25 @@ def test_failed_step_leaves_no_partial_writes():
     assert cpu.snapshot() == before
 
 
+def test_output_is_recorded_undone_snapshotted_and_reset():
+    code = Assembler.assemble("mvi, A, 42\nout, A\nmvi, A, 33\noutc, A\nhlt")
+    cpu = CPU(ROM(len(code), code), RAM(64))
+    cpu.step()
+    record = cpu.step()
+    assert record.output == "42\n" and cpu.output == ["42\n"]
+    snapshot = cpu.snapshot()
+    cpu.step()
+    assert cpu.step().output == "!" and "".join(cpu.output) == "42\n!"
+
+    cpu.restore(snapshot)
+    assert cpu.output == ["42\n"]
+    cpu.undo(record)
+    assert cpu.output == []
+    cpu.run_until()
+    cpu.reset()
+    assert cpu.output == []
+
+
 def test_errors_propagate_from_step():
     code = Assembler.assemble("pop, A")
     cpu = CPU(ROM(len(code), code), RAM(16))

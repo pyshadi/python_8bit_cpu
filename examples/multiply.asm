@@ -8,4 +8,5 @@ loop:   jz, C, done
         dec, C
         jmp, loop
 done:   st, D, 0x0100
+        out, D           ; print the result
         hlt

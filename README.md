@@ -199,6 +199,8 @@ Registers (<code>reg</code>, <code>D</code>, <code>S</code>) and immediate value
 | SHR | 0x1F | D, imm | Shift Destination register right by imm bits |
 | INV | 0x33 | D | Bitwise NOT of Destination register |
 | SAR | 0x34 | D | Arithmetic shift Destination register right by one bit, keeping the sign bit |
+| OUT | 0x35 | reg | Print the register's value as a decimal number on its own line |
+| OUTC | 0x36 | reg | Print the register's value as a character (72 prints H) |
 
 ### Control Transfer Instructions
 | Mnemonic | Opcode | Operands | Description |

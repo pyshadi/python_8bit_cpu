@@ -12,4 +12,5 @@ less:   mov, C, A        ; keep A
         mov, A, C
         jmp, loop
 done:   mov, A, B
+        out, A           ; print the result
         hlt
