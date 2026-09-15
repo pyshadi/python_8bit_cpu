@@ -42,6 +42,7 @@
   }
 
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html, body { margin: 0; }
   body { background: var(--ground); color: var(--ink); font: 15px/1.6 var(--f-ui); padding-inline: clamp(12px, 2vw, 24px); padding-block: 0 40px; }
   button, select, input, textarea { font: inherit; color: inherit; }
@@ -64,7 +65,12 @@
   .python { margin-inline-start: auto; font-size: 12px; color: var(--ink-3); }
 
   /* Console */
-  .console { background: var(--chassis); border: 1px solid var(--line); border-radius: 6px; padding: 10px; display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 10px; }
+  .console { background: var(--chassis); border: 1px solid var(--line); border-radius: 6px; padding: 10px; display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 10px; align-items: start; }
+  .side { display: grid; gap: 10px; align-content: start; min-width: 0; }
+  @media (min-width: 1500px) {
+    .console { grid-template-columns: minmax(0, 1fr) 420px 420px; }
+    .side { display: contents; }
+  }
   .module { background: var(--panel); border: 1px solid var(--line-soft); border-radius: 3px; box-shadow: var(--bevel); min-width: 0; display: flex; flex-direction: column; }
   .module-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px 9px; border-bottom: 1px solid var(--line-soft); }
   .module-head .meta { font-size: 11px; color: var(--ink-3); }
@@ -165,6 +171,42 @@
   .tape tr.next td.c { color: var(--brass); }
   .empty-trace { padding: 14px 12px; color: var(--ink-3); font-size: 13px; }
 
+  /* Memory */
+  .subtabs, .segmented { display: flex; gap: 2px; }
+  .subtab, .seg { background: transparent; border: 1px solid transparent; border-radius: 2px; padding: 4px 9px; color: var(--ink-3); cursor: pointer; }
+  .subtab .engrave, .seg .engrave { color: inherit; font-size: 11px; }
+  .subtab[aria-selected="true"], .seg[aria-pressed="true"] { color: var(--ink); border-color: var(--line); background: var(--raised); }
+  .mem-body { padding: 12px; display: grid; gap: 12px; }
+  #ramMap { display: block; width: 100%; height: auto; image-rendering: pixelated; cursor: crosshair; }
+  .goto { display: flex; align-items: center; gap: 8px; }
+  .goto input { flex: 1; min-width: 0; height: 30px; background: var(--raised); border: 1px solid var(--line); border-radius: 3px; padding: 0 9px; font-family: var(--f-mono); font-stretch: 87.5%; font-size: 12px; }
+  .goto input[aria-invalid="true"] { border-color: var(--signal); }
+  .goto .key { height: 30px; min-width: 0; font-size: 11.5px; }
+  .goto .key[aria-pressed="true"] { border-color: var(--brass); color: var(--brass); }
+  .hexdump { font-family: var(--f-mono); font-stretch: 87.5%; font-size: 11.5px; line-height: 1.9; font-variant-numeric: tabular-nums; }
+  .hexrow { display: grid; grid-template-columns: 44px repeat(16, minmax(0, 1fr)); }
+  .hexrow .a { color: var(--ink-3); }
+  .hexrow span { text-align: center; color: var(--ink-3); border-radius: 1px; }
+  .hexrow span[data-address] { cursor: pointer; }
+  .hexrow span.nz { color: var(--ink); }
+  .hexrow span.sv { color: var(--verdigris); background: var(--verd-soft); }
+  .hexrow span.ra { color: var(--brass); background: var(--brass-soft); }
+  .hexrow span.wr { color: var(--ink); background: var(--verd-soft); box-shadow: inset 0 -2px 0 var(--verdigris); }
+  .hexrow span.sp { box-shadow: inset 0 0 0 1px var(--brass); }
+  .hexrow span.tgt { box-shadow: inset 0 0 0 1px var(--ink); }
+  .hexrow span.pc { color: var(--ground); background: var(--brass); }
+  .hexrow span.bpa { box-shadow: inset 0 0 0 1px var(--signal); }
+  .hexhead span { font-size: 10px; }
+  #romDump { max-height: 420px; overflow: auto; }
+  .stack { display: grid; gap: 2px; font-family: var(--f-mono); font-stretch: 87.5%; font-size: 12px; }
+  .srow { display: grid; grid-template-columns: 38px 46px 56px 1fr; align-items: center; padding: 2px 6px; border-radius: 2px; }
+  .srow .where { font-family: var(--f-label); font-weight: 600; font-size: 10px; letter-spacing: 0.12em; color: var(--ink-3); }
+  .srow .d { font-family: var(--f-ui); font-size: 12px; color: var(--ink-2); }
+  .srow.ret { background: var(--brass-soft); }
+  .srow.ret .d { color: var(--brass); }
+  .srow.val .d { color: var(--verdigris); }
+  .srow.more { color: var(--ink-3); }
+
   /* Manual */
   .manual { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 48px; align-items: start; padding-block: 24px; }
   .toc { position: sticky; top: 16px; display: grid; gap: 2px; }
@@ -231,6 +273,12 @@
         <div class="file">
           <label class="engrave" for="program">Program</label>
           <select id="program" disabled><option>fibonacci.asm</option></select>
+          <label class="engrave" for="ramSize">RAM</label>
+          <select id="ramSize" disabled>
+            <option value="1024">1 KB</option>
+            <option value="4096">4 KB</option>
+            <option value="65536">64 KB</option>
+          </select>
         </div>
         <span class="sep"></span>
         <div class="keys">
@@ -268,13 +316,46 @@
         <div id="editorStatus" role="status">Loading Python in your browser…</div>
       </div>
 
-      <div class="module">
-        <div class="module-head"><span class="engrave">Registers</span></div>
-        <div class="regs" id="regs"></div>
+      <div class="side">
+        <div class="module">
+          <div class="module-head"><span class="engrave">Registers</span></div>
+          <div class="regs" id="regs"></div>
+        </div>
+
+        <div class="module">
+          <div class="module-head">
+            <div class="subtabs" role="tablist" aria-label="Memory">
+              <button class="subtab" role="tab" type="button" id="tab-ram" aria-controls="pane-ram" aria-selected="true"><span class="engrave">RAM</span></button>
+              <button class="subtab" role="tab" type="button" id="tab-rom" aria-controls="pane-rom" aria-selected="false"><span class="engrave">ROM</span></button>
+            </div>
+            <span class="meta mono" id="memMeta">SP 03FF</span>
+          </div>
+          <div class="mem-body" id="pane-ram" role="tabpanel" aria-labelledby="tab-ram">
+            <canvas id="ramMap" width="383" height="95" aria-label="RAM map, one square per byte; click to show that address"></canvas>
+            <div class="goto">
+              <label class="engrave" for="memAddress">Address</label>
+              <input id="memAddress" type="text" placeholder="0x0100 or label" spellcheck="false" autocomplete="off">
+              <button class="key" type="button" id="memFollow" aria-pressed="true">Follow SP</button>
+            </div>
+            <div class="hexdump" id="ramDump"></div>
+            <div class="stack" id="stackList" aria-label="Stack, top first"></div>
+          </div>
+          <div class="mem-body" id="pane-rom" role="tabpanel" aria-labelledby="tab-rom" hidden>
+            <div class="hexdump" id="romDump"></div>
+          </div>
+        </div>
       </div>
 
       <div class="module trace">
-        <div class="module-head"><span class="engrave">Trace</span><span class="meta mono" id="traceMeta"></span></div>
+        <div class="module-head">
+          <span class="engrave">Trace</span>
+          <div class="segmented" role="group" aria-label="Show">
+            <button class="seg" type="button" data-trace="all" aria-pressed="true"><span class="engrave">All</span></button>
+            <button class="seg" type="button" data-trace="ram" aria-pressed="false"><span class="engrave">Memory writes</span></button>
+            <button class="seg" type="button" data-trace="jump" aria-pressed="false"><span class="engrave">Jumps</span></button>
+          </div>
+          <span class="meta mono" id="traceMeta"></span>
+        </div>
         <div id="traceScroll">
           <table class="tape">
             <thead><tr><th>Cycle</th><th>Addr</th><th>Bytes</th><th>Instruction</th><th>Effect</th></tr></thead>
@@ -316,6 +397,7 @@
               <thead><tr><th>Control</th><th>Shortcut</th><th>What it does</th></tr></thead>
               <tbody>
                 <tr><td>Program</td><td></td><td class="soft">Loads an example program into Source. Editing it switches to “My program”.</td></tr>
+                <tr><td>RAM</td><td></td><td class="soft">RAM size: 1 KB, 4 KB or 64 KB (the full 16-bit address space). Changing it reloads the program on a fresh machine.</td></tr>
                 <tr><td>Reset</td><td><kbd>⇧F5</kbd></td><td class="soft">Clears registers and RAM, sets PC to 0000 and SP to the top of RAM. Breakpoints are kept.</td></tr>
                 <tr><td>Step</td><td><kbd>F10</kbd></td><td class="soft">Runs one instruction.</td></tr>
                 <tr><td>Run / Pause</td><td><kbd>F5</kbd></td><td class="soft">Runs at the Clock rate until a breakpoint, <code>hlt</code>, an error, or Pause. Run from a breakpoint continues past it.</td></tr>
@@ -332,8 +414,8 @@
           <h2>Lamps and colors</h2>
           <p class="muted">Color on the console always describes the machine.</p>
           <div class="meaning">
-            <div><span class="swatch"><i style="background:var(--brass)"></i><h3>Brass: live</h3></span><p>The current line, set flags and bits, jumps in Trace, and the Run and Break lamps.</p></div>
-            <div><span class="swatch"><i style="background:var(--verdigris)"></i><h3>Patina: written</h3></span><p>Registers written by the last instruction, and writes in Trace.</p></div>
+            <div><span class="swatch"><i style="background:var(--brass)"></i><h3>Brass: live</h3></span><p>The current line, set flags and bits, return addresses on the stack, the program counter in ROM, jumps in Trace, and the Run and Break lamps.</p></div>
+            <div><span class="swatch"><i style="background:var(--verdigris)"></i><h3>Patina: written</h3></span><p>Registers and RAM written by the last instruction, values on the stack, and writes in Trace.</p></div>
             <div><span class="swatch"><i style="background:var(--signal)"></i><h3>Signal: stopped</h3></span><p>Breakpoints, the Halt lamp, and assembler or runtime errors.</p></div>
           </div>
           <div class="tablewrap">
@@ -356,7 +438,11 @@
               <tbody>
                 <tr><td>Source</td><td class="soft">Columns from left: breakpoint, line number, address of the instruction on that line, code. The highlighted line is the next instruction to run.</td></tr>
                 <tr><td>Registers</td><td class="soft">Each 8-bit register shows hex, decimal and eight bit lamps (most significant on the left). PC and SP are 16-bit. F shows the four flags.</td></tr>
-                <tr><td>Trace</td><td class="soft">The most recent 200 instructions: cycle, address, bytes, instruction and its effect. The highlighted last row is the next instruction.</td></tr>
+                <tr><td>Memory: map</td><td class="soft">One square per RAM byte, starting at 0000 in the top left: 64 bytes per row for 1 KB and 4 KB, 256 per row for 64 KB. Dark squares are zero, grey squares hold data, patina squares are the stack in use, brass squares are return addresses pushed by <code>call</code>, and bright squares were written by the last instruction. Click a square to show that address.</td></tr>
+                <tr><td>Memory: dump</td><td class="soft">Eight rows of RAM around SP (outlined in brass). Type an address (<code>0x0100</code>, <code>256</code>) or a label and press Enter to show that area instead; Follow SP returns to the stack. Click a byte to select it.</td></tr>
+                <tr><td>Memory: stack</td><td class="soft">The stack from the top (SP) down: pushed values in decimal, and return addresses as <code>ret 000E (label)</code>.</td></tr>
+                <tr><td>Memory: ROM</td><td class="soft">The assembled program bytes. The next instruction is filled in brass; bytes where a breakpoint stops are outlined in red.</td></tr>
+                <tr><td>Trace</td><td class="soft">Recent instructions: cycle, address, bytes, instruction and its effect. All shows the last 200 instructions with the next one highlighted; Memory writes and Jumps each keep the last 200 of their kind, even from long runs.</td></tr>
               </tbody>
             </table>
           </div>
@@ -369,7 +455,7 @@
             <li><code>;</code> starts a comment. Mnemonics and register names are not case-sensitive.</li>
             <li>Numbers can be decimal, <code>0x10</code>, <code>0b101</code> or <code>0o17</code>. Immediate values (<code>imm</code>) are 0–255; addresses (<code>mem</code>) and labels are 0–FFFF.</li>
             <li>Registers: <code>A–L</code>, <code>X</code>, <code>Y</code>, <code>SP</code>, <code>PC</code>. <code>F</code> holds the flags and is overwritten by arithmetic.</li>
-            <li>Instructions with two registers (<code>add, B, C</code>) put the result in <code>A</code>; forms with <code>imm</code> or <code>mem</code> write back to their register. RAM is 1 KB, and the stack starts at its top.</li>
+            <li>Instructions with two registers (<code>add, B, C</code>) put the result in <code>A</code>; forms with <code>imm</code> or <code>mem</code> write back to their register. RAM is 1 KB unless you choose 4 KB or 64 KB, and the stack starts at its top.</li>
           </ul>
           <div class="ops">
             <div><h3>Data</h3><dl><dt>mov</dt><dd>reg, reg</dd><dt>mvi</dt><dd>reg, imm</dd><dt>ld</dt><dd>reg, mem</dd><dt>st</dt><dd>reg, mem</dd></dl></div>
