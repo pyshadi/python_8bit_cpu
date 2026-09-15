@@ -553,19 +553,40 @@ function drawDatapath(model, next, registers) {
     text(48, slotY(i) + 36, cls("en", written), written ? `write ← ${value(slot.write, slot.width)}` : "write");
   });
 
-  // --- A bus ---
-  // Only drawn when the instruction reads a register onto it, so a register that is only written
-  // never appears to feed the ALU.
-  const aLive = !!(model && model.a);
-  if (aLive) {
-    wire(`M164 ${slotMid(slotIndex(model.a.name))} H330 V286`, true);
-    text(338, 262, "lbl live", "A Bus");
-    text(338, 278, "lv", `${model.a.name}=${value(model.a.value, model.a.width)}`);
-  }
-
-  // --- MUX selecting the B bus: from a register, the decoder (immediate) or RAM ---
+  // --- Register bus: every register sits on it; A SEL and the B MUX choose which one to read ---
   const bKind = model && model.b ? model.b.kind : null;
-  if (bKind === "REG") wire(`M164 ${slotMid(slotIndex(model.b.name))} H206 V156 H488 V186`, true);
+  const aLive = !!(model && model.a);
+  const bReg = bKind === "REG";
+  const readNames = new Set([aLive ? model.a.name : null, bReg ? model.b.name : null]);
+  const anyRead = aLive || bReg;
+  const junction = (x, y, live) => add(`<circle class="${cls("junction", live)}" cx="${x}" cy="${y}" r="3.5"/>`);
+  slots.forEach((slot, i) => wire(`M164 ${slotMid(i)} H206`, readNames.has(slot.name), " bus"));
+  const busTop = Math.min(slotMid(0), 156);
+  const busBottom = Math.max(slotMid(slots.length - 1), 156);
+  if (busBottom > busTop) wire(`M206 ${busTop} V${busBottom}`, false, " bus");
+  // Light only the stretch of the bus between the registers being read and the selectors
+  const readMids = slots.map((slot, i) => (readNames.has(slot.name) ? slotMid(i) : null)).filter((y) => y !== null);
+  if (readMids.length) {
+    const litTop = Math.min(...readMids, 156);
+    const litBottom = Math.max(...readMids, 156);
+    if (litBottom > litTop) wire(`M206 ${litTop} V${litBottom}`, true, " bus");
+  }
+  wire("M206 156 H330", anyRead, " bus");
+  wire("M330 156 V186", aLive);
+  wire("M330 156 H488 V186", bReg);
+  junction(206, 156, anyRead);
+  junction(330, 156, anyRead);
+  text(214, 150, cls("en", anyRead), "register bus");
+
+  // --- A SEL: puts the selected register on the A bus, the ALU's left input ---
+  add(`<polygon class="${aLive ? "box act" : "box"}" points="290,190 370,190 356,236 304,236"/>`);
+  text(330, 203, cls("mux-in", aLive), aLive ? model.a.name : "REG", "middle");
+  text(330, 226, aLive ? "bl" : "bl dim", "A SEL", "middle");
+  wire("M330 236 V286", aLive);
+  text(338, 262, cls("lbl", aLive), "A Bus");
+  if (aLive) text(338, 278, "lv", `${model.a.name}=${value(model.a.value, model.a.width)}`);
+
+  // --- MUX selecting the B bus: from the register bus, the decoder (immediate) or RAM ---
   wire("M515 60 V186", bKind === "IMM");
 
   const ramActive = bKind === "RAM" || ramWrite;
