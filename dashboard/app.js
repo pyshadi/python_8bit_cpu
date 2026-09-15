@@ -13,12 +13,19 @@ const DUMP_ROWS = 8;
 const STACK_ROWS = 8;
 const DEFAULT_EXAMPLE = "fibonacci.asm";
 const NEW_PROGRAM = "; new program\n\n        hlt\n";
+const NEW_C_PROGRAM = "int main() {\n    print(42);\n    return 0;\n}\n";
+const C_KEYWORDS = new Set(["int", "char", "byte", "unsigned", "void", "const", "if", "else", "while", "for", "do", "return", "break", "continue"]);
+const C_BUILTINS = new Set(["print", "putchar", "puts", "plot", "pixel", "clear", "keys", "keychar", "rand", "frame", "peek", "poke", "halt"]);
 const SCREEN_SIZE = 32;
 const SCREEN_BASE = 0xF000;
 const KEYS_ADDRESS = 0xFF00;
 // The display is hardware, so its colors don't change with the theme: black, red, brass, white
 const PALETTE = [[13, 14, 12], [222, 91, 67], [214, 156, 76], [231, 226, 212]];
-const KEY_BITS = { ArrowUp: 1, ArrowDown: 2, ArrowLeft: 4, ArrowRight: 8, " ": 16 };
+const KEY_BITS = { ArrowUp: 1, ArrowDown: 2, ArrowLeft: 4, ArrowRight: 8, Enter: 16 };
+const ENTER_BIT = 16;
+const ENTER_CHAR = 10;
+const CHAR_KEY_ADDRESS = 0xFF02;
+const KEYBOARD_ROWS = ["1234567890", "QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
 
 const $ = (id) => document.getElementById(id);
 const el = {
@@ -35,6 +42,7 @@ const el = {
   progOpen: $("prog-open"), progDownload: $("prog-download"), progDelete: $("prog-delete"), progFile: $("prog-file"),
   progShare: $("prog-share"), themeToggle: $("themeToggle"), examplesGallery: $("examplesGallery"),
   output: $("output"), outputMeta: $("outputMeta"), screen: $("screen"), keypad: $("keypad"),
+  tabC: $("tab-c"), tabAsm: $("tab-asm"), syncNote: $("syncNote"), recompile: $("recompile"),
 };
 
 // ---------- Per-viewer storage (best effort) ----------
@@ -57,6 +65,8 @@ let commandError = null;
 let commandErrorTimer = null;
 let commandNotice = null;
 let keysMask = 0;
+let charKey = 0;          // ASCII code of the character key held, or 0
+let pausing = false;      // Pause was pressed: results from the still-running machine don't turn Run back on
 let screenBytes = new Uint8Array(SCREEN_SIZE * SCREEN_SIZE);
 let running = false;
 let state = null;
@@ -77,6 +87,15 @@ let programs = [];  // the viewer's own programs: {id, name, source, breakpoints
 let exampleNames = [];
 let current = { kind: "example", name: DEFAULT_EXAMPLE };
 let exampleBreakpoints = store.get("exampleBreakpoints", {});
+// The open program's C and assembly. While fromC is true the assembly is the compiled C and follows every
+// change to it; editing the assembly by hand sets it to false until Recompile from C.
+let doc = { c: null, asm: "", fromC: false };
+let view = "asm";          // the editor tab: "c" or "asm"
+let cLines = null;         // Map of assembly line → C line, from the compile that produced the assembly
+let compileError = null;   // {line, message} from the latest compile of the C
+let compileSeq = 0;
+let compileApply = false;
+let compileTimer = null;
 
 const worker = new Worker("worker.js");
 const send = (type, args = {}) => worker.postMessage({ type, args });
@@ -89,12 +108,14 @@ worker.onmessage = ({ data }) => {
     fillProgramList();
     buildExamplesGallery(data.examples);
     el.ramSize.disabled = false;
-    loadNow();
+    syncMachine();
   } else if (data.type === "fatal") {
     fatal = data.message;
     renderStatus();
   } else if (data.type === "result") {
     applyResult(data);
+  } else if (data.type === "compiled") {
+    applyCompiled(data);
   }
 };
 
@@ -117,7 +138,8 @@ function showNotice(message) {
 }
 
 function applyResult(result) {
-  running = result.running;
+  running = result.running && !pausing;
+  if (!result.running) pausing = false;
   if (result.error) {
     renderTransport();
     showCommandError(result.error);
@@ -173,8 +195,11 @@ function uniqueName(base) {
   }
 }
 
-function createProgram(name, source, programBreakpoints = []) {
-  const program = { id: newId(), name: uniqueName(name), source, breakpoints: programBreakpoints };
+const baseName = (name) => name.replace(/\.(asm|c)$/i, "");
+
+// extra: {c, fromC, view} for programs written in C
+function createProgram(name, source, programBreakpoints = [], extra = {}) {
+  const program = { id: newId(), name: uniqueName(name), source, breakpoints: programBreakpoints, ...extra };
   programs.unshift(program);
   saveProgramsNow();
   return program;
@@ -182,9 +207,12 @@ function createProgram(name, source, programBreakpoints = []) {
 
 function fillProgramList() {
   const mine = programs.map((p) => `<option value="mine:${p.id}">${escapeHtml(p.name)}</option>`).join("");
-  const examples = exampleNames.map((n) => `<option value="example:${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+  const options = (names) => names.map((n) => `<option value="example:${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+  const cExamples = options(exampleNames.filter((n) => /\.c$/i.test(n)));
+  const asmExamples = options(exampleNames.filter((n) => !/\.c$/i.test(n)));
   el.program.innerHTML = (mine ? `<optgroup label="My programs">${mine}</optgroup>` : "") +
-    (examples ? `<optgroup label="Examples">${examples}</optgroup>` : "");
+    (cExamples ? `<optgroup label="C examples">${cExamples}</optgroup>` : "") +
+    (asmExamples ? `<optgroup label="Assembly examples">${asmExamples}</optgroup>` : "");
   el.program.value = current.kind === "mine" ? `mine:${current.id}` : `example:${current.name}`;
   el.program.disabled = !el.program.options.length;
   const program = currentProgram();
@@ -195,12 +223,16 @@ function fillProgramList() {
 
 async function openProgram(ref) {
   editing = null;
+  let opened;
   if (ref.kind === "mine") {
     const program = programs.find((p) => p.id === ref.id);
     if (!program) return openProgram({ kind: "example", name: DEFAULT_EXAMPLE });
     current = { kind: "mine", id: program.id };
-    el.source.value = program.source;
-    breakpoints = new Set(program.breakpoints || []);
+    const c = typeof program.c === "string" ? program.c : null;
+    opened = {
+      c, asm: program.source || "", fromC: c !== null && !!program.fromC,
+      view: program.view || (c !== null ? "c" : "asm"), breakpoints: program.breakpoints || [],
+    };
   } else {
     let text;
     try {
@@ -213,18 +245,131 @@ async function openProgram(ref) {
       return;
     }
     current = { kind: "example", name: ref.name };
-    el.source.value = text;
-    breakpoints = new Set(exampleBreakpoints[ref.name] || []);
+    opened = /\.c$/i.test(ref.name)
+      ? { c: text, asm: "", fromC: true, view: "c" }
+      : { c: null, asm: text, fromC: false, view: "asm" };
+    opened.breakpoints = exampleBreakpoints[ref.name] || [];
   }
+  doc = { c: opened.c, asm: opened.asm, fromC: opened.fromC };
+  view = opened.view === "c" ? "c" : "asm";
+  breakpoints = new Set(opened.breakpoints);
+  cLines = null;
+  compileError = null;
+  compileSeq++; // a compile still on its way belongs to the previous program
   store.set("current", current);
   lineAddresses = new Map();
   lastFocusLine = null;
+  showEditorText();
   el.source.scrollTop = 0;
   if (document.activeElement === el.programName) el.programName.blur();
   fillProgramList();
   el.programName.value = displayName();
+  renderLangTabs();
   renderSource();
-  loadNow();
+  syncMachine();
+}
+
+// ---------- C and assembly ----------
+function showEditorText() {
+  el.source.value = view === "c" ? doc.c || "" : doc.asm;
+}
+
+function renderLangTabs() {
+  el.tabC.setAttribute("aria-selected", String(view === "c"));
+  el.tabAsm.setAttribute("aria-selected", String(view === "asm"));
+  const detached = doc.c !== null && doc.c.trim() !== "" && !doc.fromC;
+  el.syncNote.hidden = !detached;
+  el.recompile.hidden = !detached;
+  el.source.setAttribute("aria-label", view === "c" ? "C source" : "Assembly source");
+}
+
+function setView(next) {
+  if (next === view) return;
+  view = next;
+  showEditorText();
+  el.source.scrollTop = 0;
+  lastFocusLine = null;
+  persistDoc();
+  renderLangTabs();
+  renderSource();
+  renderStatus();
+}
+
+// Save the open program's C, assembly and tab (examples are only saved once they are edited)
+function persistDoc() {
+  const program = currentProgram();
+  if (!program) return;
+  program.source = doc.asm;
+  program.c = doc.c;
+  program.fromC = doc.fromC;
+  program.view = view;
+  saveProgramsNow();
+}
+
+function forkIfExample() {
+  if (currentProgram()) return;
+  const program = createProgram(`${baseName(current.name)} copy`, doc.asm, [...breakpoints]);
+  current = { kind: "mine", id: program.id };
+  store.set("current", current);
+  persistDoc();
+  fillProgramList();
+}
+
+// Put the program into the machine, compiling its C first when the assembly comes from it
+function syncMachine() {
+  if (doc.c !== null && doc.c.trim()) requestCompile();
+  if (!(doc.fromC && doc.c !== null && !doc.asm.trim())) loadNow();
+}
+
+function requestCompile() {
+  clearTimeout(compileTimer);
+  compileTimer = null;
+  if (!ready || doc.c === null) return;
+  compileSeq++;
+  compileApply = doc.fromC;
+  send("compile", { source: doc.c, ram_size: Number(el.ramSize.value), seq: compileSeq });
+}
+
+function applyCompiled({ seq, compiled, compile_error: problem }) {
+  if (seq !== compileSeq) return;
+  compileError = problem;
+  if (compiled) {
+    const lines = new Map(compiled.lines);
+    if (compileApply && doc.fromC) {
+      const changed = compiled.assembly !== doc.asm;
+      if (changed && cLines) breakpoints = translateBreakpoints(cLines, lines);
+      cLines = lines;
+      doc.asm = compiled.assembly;
+      persistDoc();
+      if (view === "asm") showEditorText();
+      if (changed || !(state && state.program)) loadNow();
+    } else {
+      cLines = null;
+    }
+  }
+  renderLangTabs();
+  renderSource();
+  renderStatus();
+}
+
+// Breakpoints are kept on assembly lines; after a recompile, move each one to its C line's new first instruction
+function translateBreakpoints(oldLines, newLines) {
+  const firstAsmLine = new Map();
+  for (const [asmLine, cLine] of newLines) {
+    if (!firstAsmLine.has(cLine)) firstAsmLine.set(cLine, asmLine);
+  }
+  return new Set([...breakpoints].map((line) => firstAsmLine.get(oldLines.get(line))).filter((line) => line !== undefined));
+}
+
+// The address of the first instruction of each C line
+function cLineAddresses() {
+  const addresses = new Map();
+  if (!cLines) return addresses;
+  for (const [asmLine, cLine] of cLines) {
+    const address = lineAddresses.get(asmLine);
+    if (address !== undefined && !addresses.has(cLine)) addresses.set(cLine, address);
+  }
+  return addresses;
 }
 
 function persistBreakpoints() {
@@ -242,19 +387,28 @@ function loadNow() {
   clearTimeout(loadTimer);
   loadTimer = null;
   editing = null;
-  if (ready) send("load", { source: el.source.value, breakpoints: [...breakpoints], ram_size: Number(el.ramSize.value) });
+  if (ready) send("load", { source: doc.asm, breakpoints: [...breakpoints], ram_size: Number(el.ramSize.value) });
 }
 
 function sourceChanged(immediately) {
-  let program = currentProgram();
-  if (!program) {
-    program = createProgram(`${current.name.replace(/\.asm$/i, "")} copy`, el.source.value, [...breakpoints]);
-    current = { kind: "mine", id: program.id };
-    store.set("current", current);
-    fillProgramList();
+  forkIfExample();
+  if (view === "c") {
+    doc.c = el.source.value;
+    persistDoc();
+    renderLangTabs();
+    renderSource();
+    clearTimeout(compileTimer);
+    compileTimer = setTimeout(requestCompile, immediately ? 0 : 400);
+    return;
   }
-  program.source = el.source.value;
-  saveProgramsNow();
+  doc.asm = el.source.value;
+  if (doc.fromC) {
+    // Edited by hand: the assembly stops following the C
+    doc.fromC = false;
+    cLines = null;
+    renderLangTabs();
+  }
+  persistDoc();
   renderSource();
   clearTimeout(loadTimer);
   if (immediately) loadNow();
@@ -262,11 +416,12 @@ function sourceChanged(immediately) {
 }
 
 function downloadProgram() {
-  const base = displayName().replace(/\.asm$/i, "").replace(/[\\/:*?"<>|]+/g, "-").trim() || "program";
-  const url = URL.createObjectURL(new Blob([el.source.value], { type: "text/plain" }));
+  const isC = view === "c";
+  const base = baseName(displayName()).replace(/[\\/:*?"<>|]+/g, "-").trim() || "program";
+  const url = URL.createObjectURL(new Blob([isC ? doc.c || "" : doc.asm], { type: "text/plain" }));
   const link = document.createElement("a");
   link.href = url;
-  link.download = `${base}.asm`;
+  link.download = `${base}.${isC ? "c" : "asm"}`;
   document.body.append(link);
   link.click();
   link.remove();
@@ -285,11 +440,13 @@ function decodeShare(text) {
   const binary = atob(base64 + "===".slice((base64.length + 3) % 4));
   const data = JSON.parse(new TextDecoder().decode(Uint8Array.from(binary, (c) => c.charCodeAt(0))));
   if (!data || typeof data.source !== "string") throw new Error("no program in link");
-  return { name: String(data.name || "Shared program").slice(0, 50), source: data.source };
+  const c = typeof data.c === "string" ? data.c : null;
+  return { name: String(data.name || "Shared program").slice(0, 50), source: data.source, c, fromC: c !== null && !!data.fromC };
 }
 
 async function shareProgram() {
-  const link = `${location.origin}${location.pathname}#program=${encodeShare({ name: displayName().replace(/\.asm$/i, ""), source: el.source.value })}`;
+  const shared = { name: baseName(displayName()), source: doc.asm, ...(doc.c !== null ? { c: doc.c, fromC: doc.fromC } : {}) };
+  const link = `${location.origin}${location.pathname}#program=${encodeShare(shared)}`;
   try {
     await navigator.clipboard.writeText(link);
     showNotice("Link copied. Whoever opens it gets their own copy of this program.");
@@ -305,8 +462,9 @@ async function openSharedLink() {
   showPage("console");
   try {
     const shared = decodeShare(encoded);
-    const existing = programs.find((p) => p.source === shared.source);
-    const program = existing || createProgram(`${shared.name} (shared)`, shared.source);
+    const existing = programs.find((p) => p.source === shared.source && (typeof p.c === "string" ? p.c : null) === shared.c);
+    const extra = shared.c !== null ? { c: shared.c, fromC: shared.fromC, view: "c" } : {};
+    const program = existing || createProgram(`${shared.name} (shared)`, shared.source, [], extra);
     await openProgram({ kind: "mine", id: program.id });
     showNotice(existing ? `You already have this program as “${program.name}”.` : `Added “${program.name}” to My programs.`);
     return true;
@@ -321,7 +479,7 @@ async function buildExamplesGallery(names) {
     let description = "";
     try {
       const firstLine = (await (await fetch(`../examples/${name}`, { cache: "no-cache" })).text()).split("\n")[0];
-      if (firstLine.startsWith(";")) description = firstLine.slice(1).replace(/^[^:]*:\s*/, "").trim();
+      if (/^(;|\/\/)/.test(firstLine)) description = firstLine.replace(/^(;|\/\/)/, "").replace(/^[^:]*:\s*/, "").trim();
     } catch (e) { /* show the card without a description */ }
     description = description ? description.charAt(0).toUpperCase() + description.slice(1) + "." : "";
     return `<div class="card"><h3>${escapeHtml(name)}</h3><p>${escapeHtml(description)}</p>` +
@@ -362,12 +520,57 @@ function highlightLine(line) {
   return out;
 }
 
+function highlightC(lines) {
+  const span = (cls, text) => `<span class="${cls}">${escapeHtml(text)}</span>`;
+  let inComment = false;
+  return lines.map((line) => {
+    if (!inComment && /^\s*#/.test(line)) return span("pp", line);
+    let out = "";
+    let i = 0;
+    while (i < line.length) {
+      if (inComment) {
+        const end = line.indexOf("*/", i);
+        const stop = end < 0 ? line.length : end + 2;
+        out += span("cm", line.slice(i, stop));
+        inComment = end < 0;
+        i = stop;
+        continue;
+      }
+      const rest = line.slice(i);
+      let match;
+      if (rest.startsWith("//")) { out += span("cm", rest); break; }
+      if (rest.startsWith("/*")) { inComment = true; out += span("cm", "/*"); i += 2; continue; }
+      if ((match = rest.match(/^"(?:\\.|[^"\\])*"?|^'(?:\\.|[^'\\])*'?/))) {
+        out += span("st", match[0]);
+      } else if ((match = rest.match(/^(?:0x[0-9a-f]+|0b[01]+|\d+)/i))) {
+        out += span("nm", match[0]);
+      } else if ((match = rest.match(/^[A-Za-z_]\w*/))) {
+        const word = match[0];
+        const called = /^\s*\(/.test(rest.slice(word.length));
+        if (C_KEYWORDS.has(word)) out += span("mn", word);
+        else if (called) out += span(C_BUILTINS.has(word) ? "rg" : "lb", word);
+        else if (/^[A-Z][A-Z0-9_]*$/.test(word)) out += span("nm", word);
+        else out += escapeHtml(word);
+      } else {
+        out += escapeHtml(rest[0]);
+        i++;
+        continue;
+      }
+      i += match[0].length;
+    }
+    return out;
+  });
+}
+
 function renderSource() {
   const lines = el.source.value.split("\n");
-  el.highlight.innerHTML = lines.map((line, i) => `<div class="hl-line" data-line="${i + 1}">${highlightLine(line) || " "}</div>`).join("");
+  const isC = view === "c";
+  const highlighted = isC ? highlightC(lines) : lines.map(highlightLine);
+  const addresses = isC ? cLineAddresses() : lineAddresses;
+  el.highlight.innerHTML = lines.map((line, i) => `<div class="hl-line" data-line="${i + 1}">${highlighted[i] || " "}</div>`).join("");
   el.gutter.innerHTML = lines.map((_, i) => {
     const n = i + 1;
-    const address = lineAddresses.get(n);
+    const address = addresses.get(n);
     const hasCode = address !== undefined;
     return `<div class="g-row${hasCode ? " code" : ""}" data-line="${n}" title="${hasCode ? "Toggle breakpoint (F9)" : ""}">` +
       `<span class="bp"></span><span class="no">${n}</span><span class="ad">${hasCode ? hex(address, 4) : ""}</span></div>`;
@@ -377,11 +580,18 @@ function renderSource() {
 }
 
 function renderMarks() {
-  const current = state ? state.current_line : null;
-  const errorLine = state && state.status === "error" && state.error ? state.error.line : null;
+  const toC = (line) => (line && cLines ? cLines.get(line) ?? null : null);
+  let current = state ? state.current_line : null;
+  let errorLine = state && state.status === "error" && state.error ? state.error.line : null;
+  let marked = breakpoints;
+  if (view === "c") {
+    current = toC(current);
+    errorLine = compileError ? compileError.line : toC(errorLine);
+    marked = new Set([...breakpoints].map(toC).filter((line) => line !== null));
+  }
   for (const row of el.gutter.children) {
     const n = Number(row.dataset.line);
-    row.classList.toggle("bp-on", breakpoints.has(n));
+    row.classList.toggle("bp-on", marked.has(n));
     row.classList.toggle("cur", n === current);
     row.classList.toggle("err", n === errorLine);
   }
@@ -409,10 +619,19 @@ function syncScroll() {
 }
 
 function toggleBreakpoint(line) {
-  const lineText = el.source.value.split("\n")[line - 1] || "";
-  const allowed = state && state.program ? lineAddresses.has(line) : lineText.replace(/;.*/, "").trim() !== "";
-  if (!allowed) return;
-  if (breakpoints.has(line)) breakpoints.delete(line); else breakpoints.add(line);
+  if (view === "c") {
+    // A C line's breakpoint sits on its first instruction
+    if (!cLines) return;
+    const asmLines = [...cLines].filter(([asmLine, cLine]) => cLine === line && lineAddresses.has(asmLine)).map(([asmLine]) => asmLine);
+    if (!asmLines.length) return;
+    if (asmLines.some((asmLine) => breakpoints.has(asmLine))) asmLines.forEach((asmLine) => breakpoints.delete(asmLine));
+    else breakpoints.add(asmLines[0]);
+  } else {
+    const lineText = el.source.value.split("\n")[line - 1] || "";
+    const allowed = state && state.program ? lineAddresses.has(line) : lineText.replace(/;.*/, "").trim() !== "";
+    if (!allowed) return;
+    if (breakpoints.has(line)) breakpoints.delete(line); else breakpoints.add(line);
+  }
   persistBreakpoints();
   renderMarks();
   renderRom();
@@ -455,14 +674,28 @@ function renderDisplay() {
 }
 
 function renderKeys() {
-  for (const lamp of el.keypad.children) lamp.classList.toggle("on", !!(keysMask & Number(lamp.dataset.bit)));
+  for (const lamp of el.keypad.querySelectorAll(".key-lamp")) {
+    const bit = Number(lamp.dataset.bit || 0);
+    const char = Number(lamp.dataset.char || 0);
+    lamp.classList.toggle("on", !!(keysMask & bit) || (char !== 0 && char === charKey));
+  }
 }
 
-function setKeys(mask) {
-  if (mask === keysMask) return;
+function setKeys(mask, char = charKey) {
+  if (mask === keysMask && char === charKey) return;
   keysMask = mask;
+  charKey = char;
   renderKeys();
-  if (ready) send("set_keys", { mask });
+  if (ready) send("set_keys", { mask, char });
+}
+
+function buildKeyboard() {
+  const key = (label, char, extra = "") =>
+    `<button class="key-lamp${extra}" type="button" data-char="${char}"${char === ENTER_CHAR ? ` data-bit="${ENTER_BIT}"` : ""}>${label}</button>`;
+  const rows = KEYBOARD_ROWS.map((row, i) =>
+    `<div class="kb-row${i >= 2 ? ` indent-${i - 1}` : ""}">${[...row].map((c) => key(c, c.charCodeAt(0))).join("")}</div>`);
+  rows.push(`<div class="kb-row">${key("Space", 32, " wide")}${key("Enter", ENTER_CHAR, " wide")}</div>`);
+  $("kbKeys").innerHTML = rows.join("");
 }
 
 function renderOutput() {
@@ -837,6 +1070,7 @@ function readByte(address) {
   if (address < ram.length) return ram[address];
   if (address >= SCREEN_BASE && address < SCREEN_BASE + SCREEN_SIZE * SCREEN_SIZE) return screenBytes[address - SCREEN_BASE];
   if (address === KEYS_ADDRESS) return state ? state.keys : 0;
+  if (address === CHAR_KEY_ADDRESS) return state ? state.char_key : 0;
   return 0;
 }
 
@@ -1135,17 +1369,24 @@ function renderStatus() {
     box.textContent = commandNotice;
     return;
   }
+  if (view === "c" && compileError) {
+    box.classList.add("bad");
+    box.textContent = `Line ${compileError.line}: ${compileError.message}`;
+    return;
+  }
   if (!state) return;
   if (state.status === "error" && state.error) {
     box.classList.add("bad");
-    const { line, message } = state.error;
+    const { message } = state.error;
+    const line = view === "c" ? (state.error.line && cLines ? cLines.get(state.error.line) : null) : state.error.line;
     box.textContent = line ? `Line ${line}: ${message}` : message;
   } else if (state.program) {
     box.classList.add("good");
     const p = state.program;
     const bps = state.breakpoints.length;
     const saved = currentProgram() ? "Saved · " : "";
-    box.innerHTML = `<span>${saved}Assembled <b>✓</b></span><span>${p.labels} ${p.labels === 1 ? "label" : "labels"} · ${bps} ${bps === 1 ? "breakpoint" : "breakpoints"}</span>`;
+    const done = view === "c" && doc.fromC ? "Compiled" : "Assembled";
+    box.innerHTML = `<span>${saved}${done} <b>✓</b></span><span>${p.labels} ${p.labels === 1 ? "label" : "labels"} · ${bps} ${bps === 1 ? "breakpoint" : "breakpoints"}</span>`;
   }
   el.editorMeta.textContent = state.program ? `${state.program.size} B` : "";
 }
@@ -1172,8 +1413,17 @@ function doBack() { if (!el.back.disabled) { editing = null; send("back"); } }
 function doRunPause() {
   if (el.run.disabled) return;
   editing = null;
-  if (running) send("pause");
-  else send("run", clockSetting());
+  if (running) {
+    // Show the machine as paused straight away instead of waiting for the worker's reply
+    pausing = true;
+    running = false;
+    renderTransport();
+    renderTrace();
+    send("pause");
+  } else {
+    pausing = false;
+    send("run", clockSetting());
+  }
 }
 function doReset() { if (!el.reset.disabled) { editing = null; send("reset"); } }
 
@@ -1186,7 +1436,7 @@ el.ramSize.addEventListener("change", () => {
   store.set("ramSize", el.ramSize.value);
   followSp = true;
   el.memAddress.value = "";
-  loadNow();
+  syncMachine(); // C programs are recompiled: how much room variables have depends on the RAM size
 });
 
 // Programs
@@ -1196,14 +1446,27 @@ el.program.addEventListener("change", () => {
   openProgram(kind === "mine" ? { kind: "mine", id } : { kind: "example", name: id });
 });
 el.progNew.addEventListener("click", async () => {
-  const program = createProgram("Untitled", NEW_PROGRAM);
+  // New makes a program in the language of the open tab
+  const program = view === "c"
+    ? createProgram("Untitled", "", [], { c: NEW_C_PROGRAM, fromC: true, view: "c" })
+    : createProgram("Untitled", NEW_PROGRAM);
   await openProgram({ kind: "mine", id: program.id });
   el.programName.focus();
   el.programName.select();
 });
 el.progDuplicate.addEventListener("click", () => {
-  const program = createProgram(`${displayName().replace(/\.asm$/i, "")} copy`, el.source.value, [...breakpoints]);
+  const program = createProgram(`${baseName(displayName())} copy`, doc.asm, [...breakpoints], { c: doc.c, fromC: doc.fromC, view });
   openProgram({ kind: "mine", id: program.id });
+});
+el.tabC.addEventListener("click", () => setView("c"));
+el.tabAsm.addEventListener("click", () => setView("asm"));
+el.recompile.addEventListener("click", () => {
+  if (doc.asm.trim() && !window.confirm("Replace the assembly with the compiled C? Changes made by hand in the assembly will be lost.")) return;
+  forkIfExample();
+  doc.fromC = true;
+  persistDoc();
+  renderLangTabs();
+  requestCompile();
 });
 el.progDelete.addEventListener("click", () => {
   const program = currentProgram();
@@ -1238,7 +1501,11 @@ el.progFile.addEventListener("change", async () => {
   const file = el.progFile.files[0];
   el.progFile.value = "";
   if (!file) return;
-  const program = createProgram(file.name.replace(/\.[^.]+$/, "") || "Opened program", await file.text());
+  const name = file.name.replace(/\.[^.]+$/, "") || "Opened program";
+  const text = await file.text();
+  const program = /\.c$/i.test(file.name)
+    ? createProgram(name, "", [], { c: text, fromC: true, view: "c" })
+    : createProgram(name, text);
   openProgram({ kind: "mine", id: program.id });
 });
 el.programName.addEventListener("change", () => {
@@ -1272,8 +1539,9 @@ el.source.addEventListener("keydown", (event) => {
   if (event.key === "Tab") {
     event.preventDefault();
     const { selectionStart: start, selectionEnd: end, value } = el.source;
-    el.source.value = value.slice(0, start) + "        " + value.slice(end);
-    el.source.selectionStart = el.source.selectionEnd = start + 8;
+    const indent = view === "c" ? "    " : "        ";
+    el.source.value = value.slice(0, start) + indent + value.slice(end);
+    el.source.selectionStart = el.source.selectionEnd = start + indent.length;
     sourceChanged(false);
   }
 });
@@ -1361,25 +1629,39 @@ function execTabChanged(tab) {
   if (tab === "tab-display") el.screen.focus();
 }
 
-// Keys: arrows and space while the display has focus, or press and hold the key buttons
+// Keys: the physical keyboard while the display has focus, or press and hold the on-screen keys.
+// Arrows and Enter set bits in the keys register; letters, digits, space and Enter set the character key.
+function keyFromEvent(event) {
+  if (event.metaKey || event.ctrlKey || event.altKey) return null;
+  if (event.key in KEY_BITS) return { bit: KEY_BITS[event.key], char: event.key === "Enter" ? ENTER_CHAR : 0 };
+  if (event.key.length === 1 && /[a-z0-9 ]/i.test(event.key)) return { bit: 0, char: event.key.toUpperCase().charCodeAt(0) };
+  return null;
+}
+function pressKey({ bit, char }) {
+  setKeys(keysMask | bit, char || charKey);
+}
+function releaseKey({ bit, char }) {
+  setKeys(keysMask & ~bit, char && char === charKey ? 0 : charKey);
+}
 el.screen.addEventListener("keydown", (event) => {
-  const bit = KEY_BITS[event.key];
-  if (bit === undefined) return;
+  const key = keyFromEvent(event);
+  if (!key) return;
   event.preventDefault();
-  setKeys(keysMask | bit);
+  pressKey(key);
 });
 el.screen.addEventListener("keyup", (event) => {
-  const bit = KEY_BITS[event.key];
-  if (bit === undefined) return;
+  const key = keyFromEvent(event);
+  if (!key) return;
   event.preventDefault();
-  setKeys(keysMask & ~bit);
+  releaseKey(key);
 });
-el.screen.addEventListener("blur", () => setKeys(0));
+el.screen.addEventListener("blur", () => setKeys(0, 0));
 el.screen.addEventListener("pointerdown", () => el.screen.focus());
-for (const lamp of el.keypad.children) {
-  const bit = Number(lamp.dataset.bit);
-  const release = () => setKeys(keysMask & ~bit);
-  lamp.addEventListener("pointerdown", (event) => { event.preventDefault(); lamp.setPointerCapture(event.pointerId); setKeys(keysMask | bit); });
+buildKeyboard();
+for (const lamp of el.keypad.querySelectorAll(".key-lamp")) {
+  const key = { bit: Number(lamp.dataset.bit || 0), char: Number(lamp.dataset.char || 0) };
+  const release = () => releaseKey(key);
+  lamp.addEventListener("pointerdown", (event) => { event.preventDefault(); lamp.setPointerCapture(event.pointerId); pressKey(key); });
   lamp.addEventListener("pointerup", release);
   lamp.addEventListener("pointercancel", release);
 }
@@ -1390,8 +1672,56 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "F10") { event.preventDefault(); if (event.shiftKey) doBack(); else doStep(); }
   else if (event.key === "F5") { event.preventDefault(); if (event.shiftKey) doReset(); else doRunPause(); }
   else if (event.key === "F9") { event.preventDefault(); toggleBreakpoint(caretLine()); }
-  else if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); loadNow(); }
+  else if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); if (view === "c") requestCompile(); else loadNow(); }
 });
+
+// ---------- Collapsible panels ----------
+const SECTION_NAMES = { program: "program editor", execution: "data path, trace, output and display", registers: "registers", memory: "memory" };
+const sections = [...document.querySelectorAll("[data-section]")];
+const collapsed = new Set(store.get("collapsed", []).filter((name) => name in SECTION_NAMES));
+
+function renderCollapsed() {
+  for (const section of sections) {
+    const name = section.dataset.section;
+    const folded = collapsed.has(name);
+    section.classList.toggle("collapsed", folded);
+    const button = section.querySelector(".collapse");
+    button.setAttribute("aria-expanded", String(!folded));
+    button.setAttribute("aria-label", `${folded ? "Expand" : "Collapse"} ${SECTION_NAMES[name]}`);
+    button.title = folded ? "Expand" : "Collapse";
+  }
+  const board = document.querySelector(".console");
+  board.classList.toggle("reg-collapsed", collapsed.has("registers"));
+  board.classList.toggle("mem-collapsed", collapsed.has("memory"));
+}
+
+function setCollapsed(name, fold) {
+  if (fold) collapsed.add(name); else collapsed.delete(name);
+  store.set("collapsed", [...collapsed]);
+  renderCollapsed();
+  if (!fold) render(); // redraw what was hidden, e.g. the editor's line marks and the RAM map
+}
+
+for (const section of sections) {
+  const name = section.dataset.section;
+  const head = section.querySelector(".module-head");
+  const onControl = (event) => event.target.closest("button, input, textarea, select, a, [role='tab']");
+  section.querySelector(".collapse").addEventListener("click", () => setCollapsed(name, !collapsed.has(name)));
+  // Double-clicking a header's empty space or title folds or opens the panel
+  head.addEventListener("dblclick", (event) => {
+    if (onControl(event)) return;
+    window.getSelection()?.removeAllRanges();
+    setCollapsed(name, !collapsed.has(name));
+  });
+  head.addEventListener("mousedown", (event) => {
+    if (event.detail > 1 && !onControl(event)) event.preventDefault(); // no word selection on double-click
+  });
+  // Choosing a tab in a folded panel opens it (capture, so the panel is open before the tab reacts)
+  section.addEventListener("click", (event) => {
+    if (collapsed.has(name) && event.target.closest('[role="tab"]')) setCollapsed(name, false);
+  }, true);
+}
+renderCollapsed();
 
 // ---------- Page tabs ----------
 const pageTabs = ["console", "manual"];

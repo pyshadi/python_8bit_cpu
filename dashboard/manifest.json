@@ -4,6 +4,7 @@
     "__init__.py",
     "alu.py",
     "assembler.py",
+    "compiler.py",
     "cpu.py",
     "decoder.py",
     "disassembler.py",
@@ -14,14 +15,25 @@
   ],
   "examples": [
     "bitcount.asm",
+    "bitcount.c",
+    "bounce.c",
     "countdown.asm",
+    "countdown.c",
     "factorial.asm",
+    "factorial.c",
+    "fib.c",
     "fibonacci.asm",
     "gcd.asm",
+    "gcd.c",
     "hello.asm",
+    "hello.c",
     "keys.asm",
     "multiply.asm",
     "pattern.asm",
-    "swap.asm"
+    "sieve.c",
+    "sketch.c",
+    "stripes.c",
+    "swap.asm",
+    "typewriter.c"
   ]
 }

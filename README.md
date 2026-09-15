@@ -206,7 +206,11 @@ Registers (<code>reg</code>, <code>D</code>, <code>S</code>) and immediate value
 | INXY | 0x39 | None | Add 1 to the 16-bit address in X:Y |
 | FRAME | 0x3A | None | End of a frame; at full speed the dashboard waits for the next 1/30 s |
 
-Memory map: RAM from <code>0000</code> (up to <code>EFFF</code>), a 32×32 screen at <code>F000–F3FF</code> (one byte per pixel, colors 0–3), keys at <code>FF00</code> (1 up, 2 down, 4 left, 8 right, 16 fire) and a random byte at <code>FF01</code>. The dashboard shows the screen in its Display tab.
+Memory map: RAM from <code>0000</code> (up to <code>EFFF</code>), a 32×32 screen at <code>F000–F3FF</code> (one byte per pixel, colors 0–3), keys at <code>FF00</code> (1 up, 2 down, 4 left, 8 right, 16 Enter), a random byte at <code>FF01</code> and the character key held (ASCII, or 0) at <code>FF02</code>. The dashboard shows the screen in its Display tab.
+
+### C programs
+
+The dashboard's editor has a C Program tab next to the Assembly tab. C written there is compiled in the browser by `src/compiler.py`; the assembly it produces appears in the Assembly tab and runs on the machine. The language is C with unsigned 8-bit values: global variables and arrays, local variables, functions with up to six parameters and recursion, `if`/`else`, `while`, `do`/`while`, `for`, the usual operators and `#define`. Built-ins cover output (`print`, `putchar`, `puts`), the screen (`plot`, `pixel`, `clear`), input (`keys`, `keychar`, `rand`), `frame`, `peek`/`poke` and `halt`. The dashboard Manual has the details, and the `.c` files in `examples/` (from `hello.c` to the interactive `sketch.c`) show it in use.
 
 ### Control Transfer Instructions
 | Mnemonic | Opcode | Operands | Description |

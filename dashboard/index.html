@@ -78,12 +78,27 @@
   .python { margin-inline-start: auto; font-size: 12px; color: var(--ink-3); }
 
   /* Console */
-  .console { background: var(--chassis); border: 1px solid var(--line); border-radius: 6px; padding: 10px; display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 10px; align-items: start; }
+  .console { background: var(--chassis); border: 1px solid var(--line); border-radius: 6px; padding: 10px; display: grid; grid-template-columns: minmax(0, 1fr) var(--side-w, 420px); gap: 10px; align-items: start; }
   .side, .col { display: grid; gap: 10px; align-content: start; min-width: 0; }
+  /* A column whose panels are all collapsed narrows, giving the program and data path more room */
+  .console.reg-collapsed.mem-collapsed { --side-w: 220px; }
   @media (min-width: 1500px) {
-    .console { grid-template-columns: minmax(0, 1fr) 420px 420px; }
+    .console { grid-template-columns: minmax(0, 1fr) var(--reg-w, 420px) var(--mem-w, 420px); }
+    .console.reg-collapsed { --reg-w: 220px; }
+    .console.mem-collapsed { --mem-w: 220px; }
     .side { display: contents; }
   }
+
+  /* Collapsible panels */
+  .collapse { flex: 0 0 auto; display: inline-grid; place-items: center; width: 24px; height: 24px; margin-inline-start: -5px; padding: 0; background: transparent; border: 1px solid transparent; border-radius: 3px; color: var(--ink-3); cursor: pointer; }
+  .collapse:hover { color: var(--ink); border-color: var(--line); }
+  .collapse:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+  .collapse svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.15s ease; }
+  .module.collapsed .collapse svg { transform: rotate(-90deg); }
+  @media (prefers-reduced-motion: reduce) { .collapse svg { transition: none; } }
+  .module-head > .collapse + .subtabs, .module-head > .head-title { margin-inline-end: auto; }
+  .module.collapsed > :not(.module-head) { display: none !important; }
+  .module.collapsed > .module-head { border-bottom-color: transparent; }
   .module { background: var(--panel); border: 1px solid var(--line-soft); border-radius: 3px; box-shadow: var(--bevel); min-width: 0; display: flex; flex-direction: column; }
   .module-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px 9px; border-bottom: 1px solid var(--line-soft); }
   .module-head .meta { font-size: 11px; color: var(--ink-3); }
@@ -151,6 +166,10 @@
   .nm { color: var(--verdigris); }
   .lb { color: var(--ink); font-weight: 600; }
   .cm { color: var(--ink-3); }
+  .st { color: var(--verdigris); }
+  .pp { color: var(--brass); }
+  .lang-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 5px 12px; border-bottom: 1px solid var(--line-soft); }
+  .sync-note { margin-inline-start: auto; font-size: 12px; color: var(--brass); }
   #editorStatus { margin: 0 12px 12px; padding: 8px 10px; min-height: 38px; border: 1px solid var(--line-soft); border-radius: 2px; display: flex; justify-content: space-between; gap: 10px; font-family: var(--f-mono); font-stretch: 87.5%; font-size: 12px; color: var(--ink-2); }
   #editorStatus.good b { color: var(--verdigris); font-weight: 500; }
   #editorStatus.bad { color: var(--signal); border-color: var(--signal); background: var(--signal-soft); }
@@ -295,12 +314,18 @@
   .output:empty::before { content: "—"; color: var(--ink-3); }
 
   /* Display */
-  .display-wrap { display: grid; justify-items: center; align-content: start; gap: 14px; padding: 18px 14px; min-height: 440px; }
-  #screen { width: min(100%, 384px); aspect-ratio: 1; height: auto; image-rendering: pixelated; background: #0d0e0c; border: 1px solid var(--line); border-radius: 2px; cursor: crosshair; }
+  .display-wrap { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: flex-start; gap: 18px 22px; padding: 16px 14px; min-height: 440px; }
+  #screen { flex: 0 0 auto; width: min(100%, 352px); max-width: 100%; aspect-ratio: 1; height: auto; image-rendering: pixelated; background: #0d0e0c; border: 1px solid var(--line); border-radius: 2px; cursor: crosshair; }
   #screen:focus-visible, #screen:focus { outline: 2px solid var(--brass); outline-offset: 3px; }
-  .keypad { display: flex; gap: 6px; }
-  .key-lamp { min-width: 40px; height: 30px; padding: 0 8px; background: var(--key); border: 1px solid var(--line); border-radius: 3px; box-shadow: var(--bevel); color: var(--ink-2); font-family: var(--f-label); font-weight: 600; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; touch-action: none; }
-  .key-lamp.wide { min-width: 64px; }
+  .keypad { display: grid; gap: 14px; align-content: start; justify-items: start; }
+  .kb-keys { display: grid; gap: 4px; }
+  .kb-row { display: flex; gap: 4px; }
+  .kb-row.indent-1 { padding-inline-start: 14px; }
+  .kb-row.indent-2 { padding-inline-start: 28px; }
+  .kb-arrows { display: grid; grid-template-columns: repeat(3, 32px); grid-template-areas: ". up ." "left down right"; gap: 4px; }
+  .kb-arrows .up { grid-area: up; } .kb-arrows .left { grid-area: left; } .kb-arrows .down { grid-area: down; } .kb-arrows .right { grid-area: right; }
+  .key-lamp { min-width: 28px; height: 28px; padding: 0 5px; background: var(--key); border: 1px solid var(--line); border-radius: 3px; box-shadow: var(--bevel); color: var(--ink-2); font-family: var(--f-label); font-weight: 600; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; touch-action: none; }
+  .key-lamp.wide { min-width: 96px; }
   .key-lamp.on { background: var(--brass); border-color: var(--brass); color: var(--ground); box-shadow: var(--brass-glow); }
 
   /* Examples gallery */
@@ -417,8 +442,9 @@
       </div>
 
       <div class="col">
-      <div class="module">
+      <div class="module" data-section="program">
         <div class="module-head source-head">
+          <button class="collapse" type="button" aria-expanded="true"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.25 6 7.75 9.5 4.25"/></svg></button>
           <input id="programName" class="name-input" type="text" aria-label="Program name" spellcheck="false" autocomplete="off" maxlength="60">
           <span class="meta mono" id="editorMeta"></span>
           <div class="tools">
@@ -429,7 +455,15 @@
             <button class="tool" type="button" id="prog-download">Download</button>
             <button class="tool danger" type="button" id="prog-delete">Delete</button>
           </div>
-          <input id="prog-file" type="file" accept=".asm,.txt,text/plain" hidden>
+          <input id="prog-file" type="file" accept=".asm,.c,.txt,text/plain" hidden>
+        </div>
+        <div class="lang-bar">
+          <div class="subtabs" role="tablist" aria-label="Language">
+            <button class="subtab" role="tab" type="button" id="tab-c" aria-controls="source" aria-selected="false"><span class="engrave">C Program</span></button>
+            <button class="subtab" role="tab" type="button" id="tab-asm" aria-controls="source" aria-selected="true"><span class="engrave">Assembly</span></button>
+          </div>
+          <span class="sync-note" id="syncNote" hidden>Assembly doesn't match the C</span>
+          <button class="tool" type="button" id="recompile" hidden>Recompile from C</button>
         </div>
         <div class="editor-body">
           <div class="gutter-clip"><div id="gutter"></div></div>
@@ -441,8 +475,9 @@
         <div id="editorStatus" role="status">Loading Python in your browser…</div>
       </div>
 
-      <div class="module">
+      <div class="module" data-section="execution">
         <div class="module-head">
+          <button class="collapse" type="button" aria-expanded="true"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.25 6 7.75 9.5 4.25"/></svg></button>
           <div class="subtabs" role="tablist" aria-label="Execution">
             <button class="subtab" role="tab" type="button" id="tab-path" aria-controls="pane-path" aria-selected="true"><span class="engrave">Data path</span></button>
             <button class="subtab" role="tab" type="button" id="tab-trace" aria-controls="pane-trace" aria-selected="false"><span class="engrave">Trace</span></button>
@@ -474,13 +509,15 @@
         </div>
         <div id="pane-display" role="tabpanel" aria-labelledby="tab-display" hidden>
           <div class="display-wrap">
-            <canvas id="screen" width="32" height="32" tabindex="0" aria-label="32 by 32 pixel display. While it has focus, the arrow keys and space are sent to the program."></canvas>
-            <div class="keypad" id="keypad" aria-label="Keys held">
-              <button class="key-lamp" type="button" data-bit="4" aria-label="Left">←</button>
-              <button class="key-lamp" type="button" data-bit="1" aria-label="Up">↑</button>
-              <button class="key-lamp" type="button" data-bit="2" aria-label="Down">↓</button>
-              <button class="key-lamp" type="button" data-bit="8" aria-label="Right">→</button>
-              <button class="key-lamp wide" type="button" data-bit="16" aria-label="Fire">Fire</button>
+            <canvas id="screen" width="32" height="32" tabindex="0" aria-label="32 by 32 pixel display. While it has focus, the arrow keys, letters, digits, space and Enter are sent to the program."></canvas>
+            <div class="keypad" id="keypad" aria-label="Keyboard">
+              <div class="kb-keys" id="kbKeys"></div>
+              <div class="kb-arrows">
+                <button class="key-lamp up" type="button" data-bit="1" aria-label="Up">↑</button>
+                <button class="key-lamp left" type="button" data-bit="4" aria-label="Left">←</button>
+                <button class="key-lamp down" type="button" data-bit="2" aria-label="Down">↓</button>
+                <button class="key-lamp right" type="button" data-bit="8" aria-label="Right">→</button>
+              </div>
             </div>
           </div>
         </div>
@@ -489,8 +526,11 @@
 
       <div class="side">
         <div class="col">
-        <div class="module">
-          <div class="module-head"><span class="engrave">Registers</span></div>
+        <div class="module" data-section="registers">
+          <div class="module-head">
+            <button class="collapse" type="button" aria-expanded="true"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.25 6 7.75 9.5 4.25"/></svg></button>
+            <span class="engrave head-title">Registers</span>
+          </div>
           <div class="regs" id="regs"></div>
         </div>
 
@@ -498,8 +538,9 @@
 
         <div class="col">
 
-        <div class="module">
+        <div class="module" data-section="memory">
           <div class="module-head">
+            <button class="collapse" type="button" aria-expanded="true"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.25 6 7.75 9.5 4.25"/></svg></button>
             <div class="subtabs" role="tablist" aria-label="Memory">
               <button class="subtab" role="tab" type="button" id="tab-ram" aria-controls="pane-ram" aria-selected="true"><span class="engrave">RAM</span></button>
               <button class="subtab" role="tab" type="button" id="tab-rom" aria-controls="pane-rom" aria-selected="false"><span class="engrave">ROM</span></button>
@@ -532,6 +573,7 @@
         <a href="#m-start">Getting started</a>
         <a href="#m-programs">Programs</a>
         <a href="#m-examples">Examples</a>
+        <a href="#m-c">C programs</a>
         <a href="#m-hardware">Screen and keys</a>
         <a href="#m-controls">Controls</a>
         <a href="#m-colors">Lamps and colors</a>
@@ -578,6 +620,46 @@
           <div class="gallery" id="examplesGallery"></div>
         </section>
 
+        <section id="m-c">
+          <h2>C programs</h2>
+          <p class="muted">Every program has a C Program tab and an Assembly tab above the editor. Write C in the C Program tab and the Assembly tab follows it: each change is compiled in your browser and loaded into the machine. Stepping highlights the C line and, in the Assembly tab, the exact instruction. Breakpoints work in both tabs. New creates a C program while the C Program tab is open. The C examples are listed under C examples in the program list.</p>
+          <p class="muted">You can still change the assembly by hand. From then on it no longer follows the C, and the editor shows “Assembly doesn't match the C”. Recompile from C replaces it with the compiled C again.</p>
+          <div class="tablewrap">
+            <table class="doc">
+              <thead><tr><th>Language</th><th>What you can use</th></tr></thead>
+              <tbody>
+                <tr><td>Values</td><td class="soft"><code>int</code>, <code>char</code> and <code>byte</code> are all unsigned bytes, 0 to 255. Arithmetic wraps around: <code>250 + 10</code> is 4 and <code>-1</code> is 255.</td></tr>
+                <tr><td>Variables</td><td class="soft">Globals with initial values (<code>int score = 0;</code>), global arrays (<code>int grid[64];</code>, <code>int primes[] = {2, 3, 5};</code>, <code>char name[] = "HI";</code>), and local variables and parameters inside functions. Arrays are global and hold up to 256 elements.</td></tr>
+                <tr><td>Statements</td><td class="soft"><code>if</code>/<code>else</code>, <code>while</code>, <code>do</code>/<code>while</code>, <code>for</code>, <code>break</code>, <code>continue</code>, <code>return</code>, and blocks with their own variables.</td></tr>
+                <tr><td>Operators</td><td class="soft"><code>+ - * / %</code>, <code>&amp; | ^ ~ &lt;&lt; &gt;&gt;</code>, <code>== != &lt; &gt; &lt;= &gt;=</code>, <code>&amp;&amp; || !</code>, <code>?:</code>, <code>=</code> with <code>+=</code> and the other compound assignments, <code>++</code> and <code>--</code>.</td></tr>
+                <tr><td>Functions</td><td class="soft">Up to 6 parameters, recursion and <code>void</code> functions. A prototype such as <code>int f(int n);</code> lets functions call each other in any order. Every program needs <code>int main()</code>; returning from it halts the machine.</td></tr>
+                <tr><td><code>#define</code></td><td class="soft"><code>#define NAME value</code> for constants.</td></tr>
+                <tr><td>Not yet</td><td class="soft">Pointers, structs, local arrays, <code>switch</code>, and signed or 16-bit types.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="tablewrap">
+            <table class="doc">
+              <thead><tr><th>Built-in</th><th>What it does</th></tr></thead>
+              <tbody>
+                <tr><td><code>print(n)</code></td><td class="soft">Prints a number and a new line.</td></tr>
+                <tr><td><code>putchar(c)</code></td><td class="soft">Prints one character: <code>putchar('A')</code>, <code>putchar(10)</code> for a new line.</td></tr>
+                <tr><td><code>puts("text")</code></td><td class="soft">Prints the text and a new line.</td></tr>
+                <tr><td><code>plot(x, y, color)</code></td><td class="soft">Sets a pixel on the Display. <code>x</code> and <code>y</code> wrap at 32. Colors: <code>BLACK</code>, <code>RED</code>, <code>BRASS</code>, <code>WHITE</code>.</td></tr>
+                <tr><td><code>pixel(x, y)</code></td><td class="soft">The color of a pixel.</td></tr>
+                <tr><td><code>clear(color)</code></td><td class="soft">Fills the Display with one color.</td></tr>
+                <tr><td><code>keys()</code></td><td class="soft">The keys held. Test one with <code>KEY_UP</code>, <code>KEY_DOWN</code>, <code>KEY_LEFT</code>, <code>KEY_RIGHT</code> or <code>KEY_ENTER</code>: <code>if (keys() &amp; KEY_LEFT) x--;</code></td></tr>
+                <tr><td><code>keychar()</code></td><td class="soft">The letter, digit or space key held, such as <code>'A'</code> or <code>'7'</code> (letters are upper case), 10 for Enter, or 0 when none is held.</td></tr>
+                <tr><td><code>rand()</code></td><td class="soft">A random byte.</td></tr>
+                <tr><td><code>frame()</code></td><td class="soft">Ends a frame. At max clock speed the machine waits here for the next 1/30 second.</td></tr>
+                <tr><td><code>peek(address)</code> · <code>poke(address, value)</code></td><td class="soft">Read or write any byte of memory, such as <code>poke(0xF000 + i, RED)</code>.</td></tr>
+                <tr><td><code>halt()</code></td><td class="soft">Stops the machine.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="muted">How it runs: each variable has a fixed RAM address, listed at the top of the generated assembly. Expressions are worked out in register A, arguments arrive in C, D, E, G, H and I, and a function saves its variables on the stack while it runs, which is what lets it call itself.</p>
+        </section>
+
         <section id="m-hardware">
           <h2>Screen, keys and memory map</h2>
           <p class="muted">The top of the 16-bit address space belongs to devices, so they work whatever RAM size you choose. Programs draw by writing bytes into screen memory, and read the keyboard and random numbers from fixed addresses.</p>
@@ -587,7 +669,8 @@
               <tbody>
                 <tr><td><code>0000–EFFF</code></td><td>RAM</td><td class="soft">As much as the RAM setting allows (60 KB when 64 KB is chosen). The stack starts at the top of RAM.</td></tr>
                 <tr><td><code>F000–F3FF</code></td><td>Screen</td><td class="soft">32 × 32 pixels, one byte each, row by row: the pixel at column x, row y is at <code>F000 + y × 32 + x</code>. Colors: 0 black, 1 red, 2 brass, 3 white. Shown in the Display tab.</td></tr>
-                <tr><td><code>FF00</code></td><td>Keys</td><td class="soft">Read-only. Add up the keys held: 1 up, 2 down, 4 left, 8 right, 16 fire (space). Click the display, then press keys, or press and hold the buttons under it.</td></tr>
+                <tr><td><code>FF00</code></td><td>Keys</td><td class="soft">Read-only. Add up the keys held: 1 up, 2 down, 4 left, 8 right, 16 Enter. Click the display, then press keys, or press and hold the keys beside it.</td></tr>
+                <tr><td><code>FF02</code></td><td>Character key</td><td class="soft">Read-only. The ASCII code of the letter, digit or space key held (letters are upper case), 10 for Enter, or 0.</td></tr>
                 <tr><td><code>FF01</code></td><td>Random</td><td class="soft">Read-only. A different byte on every instruction; rewinding replays exactly the same numbers.</td></tr>
               </tbody>
             </table>
@@ -661,7 +744,8 @@
                 <tr><td>Source</td><td class="soft">Columns from left: breakpoint, line number, address of the instruction on that line, code. The highlighted line is the next instruction to run.</td></tr>
                 <tr><td>Registers</td><td class="soft">Each 8-bit register shows hex, decimal and eight bit lamps (most significant on the left). PC and SP are 16-bit. F shows the four flags.</td></tr>
                 <tr><td>Output</td><td class="soft">The Output tab, after Trace, shows everything the program prints; a dot on the tab means there is new output you haven't seen. <code>out, A</code> prints A as a decimal number on its own line; <code>outc, A</code> prints A as a character (72 is H, 10 starts a new line). Reset clears it, and Back undoes printing along with everything else.</td></tr>
-                <tr><td>Display</td><td class="soft">The 32 × 32 pixel screen at <code>F000–F3FF</code>, with the keys currently held lit underneath. Click the screen to send the arrow keys and space to the program. See Screen and keys.</td></tr>
+                <tr><td>Collapsing</td><td class="soft">Double-click a panel's header (or press the arrow at its left) to fold the panel down to its header; do it again to open it. Choosing a tab in a folded panel opens it too. When Registers and Memory are both folded their column narrows, and this browser remembers which panels are folded.</td></tr>
+                <tr><td>Display</td><td class="soft">The 32 × 32 pixel screen at <code>F000–F3FF</code>, with a keyboard beside it: letters, digits, space, Enter and the arrow keys, lit while held. Click the screen to type on your own keyboard instead. See Screen and keys.</td></tr>
                 <tr><td>Data path</td><td class="soft">What the next instruction will do before it runs, following what the emulator's code actually does. Registers sit on the register bus; A SEL and the MUX pick the ALU's inputs. The ALU lights up only when the instruction uses it (arithmetic, logic, shifts, rotations, compares, <code>inc</code> and <code>dec</code>). Moves, stack operations, <code>call</code>, <code>ret</code> and <code>jmp</code> take the <b>direct transfer</b> path around the ALU. Conditional jumps show the decoder comparing a register (or the carry flag) and whether the jump is taken. The values on the lit wires are the ones the instruction will read and write. If it would fail, the panel heading says why.</td></tr>
                 <tr><td>Memory: map</td><td class="soft">One square per RAM byte, starting at 0000 in the top left: 64 bytes per row for 1 KB and 4 KB, 256 per row for 64 KB. Dark squares are zero, grey squares hold data, patina squares are the stack in use, brass squares are return addresses pushed by <code>call</code>, and bright squares were written by the last instruction. Click a square to show that address.</td></tr>
                 <tr><td>Memory: dump</td><td class="soft">Eight rows of RAM around SP (outlined in brass). Type an address (<code>0x0100</code>, <code>256</code>) or a label and press Enter to show that area instead; Follow SP returns to the stack. Click a byte to select it.</td></tr>

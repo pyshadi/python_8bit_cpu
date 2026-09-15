@@ -10,6 +10,7 @@ import re
 from collections import deque
 
 from src.assembler import Assembler, AssemblerError
+from src.compiler import CompileError, compile_c
 from src.cpu import CPU
 from src.disassembler import DisassemblerError, disassemble
 from src.memory import DEVICE_BASE, ROM, RAM, SCREEN_BASE, SCREEN_END
@@ -65,6 +66,7 @@ class Session:
         self.last_ram_writes = []           # RAM addresses written by the last instruction
         self.return_cells = set()           # RAM addresses holding bytes pushed by call
         self.keys = 0                       # keys held on the dashboard, kept across loads
+        self.char_key = 0                   # character key held on the dashboard
         # ("step", StepRecord, return cells before or None) or ("edit", "register" | "ram", where, old value)
         self._history = deque(maxlen=HISTORY_LIMIT)
         self._clear_recent()
@@ -85,6 +87,7 @@ class Session:
             "poke_register": self.poke_register,
             "poke_ram": self.poke_ram,
             "set_keys": self.set_keys,
+            "compile": self.compile,
             "state": self._result,
         }
         if name not in handlers:
@@ -116,9 +119,22 @@ class Session:
         code = program.bytecode
         self.cpu = CPU(ROM(max(len(code), 1), code), RAM(self.ram_size))
         self.cpu.ram.keys = self.keys
+        self.cpu.ram.char_key = self.char_key
         self.status, self.error = "ready", None
         self._apply_breakpoints(breakpoints)
         return self._result(clear_trace=True)
+
+    def compile(self, source, ram_size=None):
+        """
+        Compile C to assembly without touching the machine. Returns {"compiled": {"assembly", "lines"}, "compile_error"},
+        where lines pairs each assembly instruction line with its C line.
+        """
+        try:
+            compiled = compile_c(source, self.ram_size if ram_size is None else self._check_ram_size(ram_size))
+        except CompileError as e:
+            return {"compiled": None, "compile_error": {"line": e.line, "message": e.message}}
+        return {"compiled": {"assembly": compiled.assembly, "lines": sorted(compiled.line_map.items())},
+                "compile_error": None}
 
     def set_breakpoints(self, lines):
         self._apply_breakpoints(lines)
@@ -235,16 +251,20 @@ class Session:
         self._after_edit()
         return self._result()
 
-    def set_keys(self, mask):
+    def set_keys(self, mask, char=0):
         """
-        Set which keys are held (bit 0 up, 1 down, 2 left, 3 right, 4 fire). Not part of the undo history.
+        Set which keys are held (bit 0 up, 1 down, 2 left, 3 right, 4 Enter) and the character key held
+        (an ASCII code, or 0). Not part of the undo history.
         """
-        mask = int(mask)
+        mask, char = int(mask), int(char)
         if not 0 <= mask <= 0xFF:
             raise ValueError(f"keys must be a byte (0-255), got {mask}")
-        self.keys = mask
+        if not 0 <= char <= 0xFF:
+            raise ValueError(f"char must be a byte (0-255), got {char}")
+        self.keys, self.char_key = mask, char
         if self.cpu is not None:
             self.cpu.ram.keys = mask
+            self.cpu.ram.char_key = char
         return self._result()
 
     # --- State -----------------------------------------------------------------
@@ -309,6 +329,7 @@ class Session:
             "program": program,
             "screen": base64.b64encode(screen).decode("ascii"),
             "keys": self.keys,
+            "char_key": self.char_key,
             "memory": {
                 "size": len(ram),
                 "ram": base64.b64encode(ram).decode("ascii"),

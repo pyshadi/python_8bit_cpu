@@ -5,7 +5,7 @@ import pytest
 
 from src.assembler import Assembler
 from src.cpu import CPU
-from src.memory import KEY_RIGHT, KEYS, RANDOM, RAM, ROM, SCREEN_BASE, random_byte
+from src.memory import CHAR_KEY, KEY_ENTER, KEY_RIGHT, KEYS, RANDOM, RAM, ROM, SCREEN_BASE, random_byte
 from src.registers import Registers
 from src.session import Session
 from src.trace import StopReason
@@ -65,6 +65,26 @@ def test_keys_are_readable():
     cpu.ram.keys = KEY_RIGHT
     cpu.run_until()
     assert reg(cpu, "A") == KEY_RIGHT
+
+
+def test_character_key_is_readable_and_read_only():
+    cpu = machine("ld, A, 0xFF02\nhlt")
+    cpu.ram.char_key = ord("Q")
+    cpu.run_until()
+    assert reg(cpu, "A") == ord("Q")
+    with pytest.raises(IndexError, match=r"FF02 \(character key\) is read-only"):
+        RAM(1024).write(CHAR_KEY, 1)
+
+
+def test_session_sets_the_character_key_with_the_keys():
+    session = Session()
+    session.load("ld, A, 0xFF02\nld, B, 0xFF00\nhlt")
+    state = session.set_keys(KEY_ENTER, char=10)["state"]
+    assert (state["keys"], state["char_key"]) == (KEY_ENTER, 10)
+    registers = session.run()["state"]["registers"]
+    assert (registers[0], registers[1]) == (10, KEY_ENTER)
+    with pytest.raises(ValueError, match="char must be a byte"):
+        session.set_keys(0, char=300)
 
 
 def test_random_depends_only_on_the_cycle_and_replays_after_undo():
