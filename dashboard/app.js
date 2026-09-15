@@ -1675,6 +1675,54 @@ document.addEventListener("keydown", (event) => {
   else if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); if (view === "c") requestCompile(); else loadNow(); }
 });
 
+// ---------- Collapsible panels ----------
+const SECTION_NAMES = { program: "program editor", execution: "data path, trace, output and display", registers: "registers", memory: "memory" };
+const sections = [...document.querySelectorAll("[data-section]")];
+const collapsed = new Set(store.get("collapsed", []).filter((name) => name in SECTION_NAMES));
+
+function renderCollapsed() {
+  for (const section of sections) {
+    const name = section.dataset.section;
+    const folded = collapsed.has(name);
+    section.classList.toggle("collapsed", folded);
+    const button = section.querySelector(".collapse");
+    button.setAttribute("aria-expanded", String(!folded));
+    button.setAttribute("aria-label", `${folded ? "Expand" : "Collapse"} ${SECTION_NAMES[name]}`);
+    button.title = folded ? "Expand" : "Collapse";
+  }
+  const board = document.querySelector(".console");
+  board.classList.toggle("reg-collapsed", collapsed.has("registers"));
+  board.classList.toggle("mem-collapsed", collapsed.has("memory"));
+}
+
+function setCollapsed(name, fold) {
+  if (fold) collapsed.add(name); else collapsed.delete(name);
+  store.set("collapsed", [...collapsed]);
+  renderCollapsed();
+  if (!fold) render(); // redraw what was hidden, e.g. the editor's line marks and the RAM map
+}
+
+for (const section of sections) {
+  const name = section.dataset.section;
+  const head = section.querySelector(".module-head");
+  const onControl = (event) => event.target.closest("button, input, textarea, select, a, [role='tab']");
+  section.querySelector(".collapse").addEventListener("click", () => setCollapsed(name, !collapsed.has(name)));
+  // Double-clicking a header's empty space or title folds or opens the panel
+  head.addEventListener("dblclick", (event) => {
+    if (onControl(event)) return;
+    window.getSelection()?.removeAllRanges();
+    setCollapsed(name, !collapsed.has(name));
+  });
+  head.addEventListener("mousedown", (event) => {
+    if (event.detail > 1 && !onControl(event)) event.preventDefault(); // no word selection on double-click
+  });
+  // Choosing a tab in a folded panel opens it (capture, so the panel is open before the tab reacts)
+  section.addEventListener("click", (event) => {
+    if (collapsed.has(name) && event.target.closest('[role="tab"]')) setCollapsed(name, false);
+  }, true);
+}
+renderCollapsed();
+
 // ---------- Page tabs ----------
 const pageTabs = ["console", "manual"];
 function showPage(name, focus) {

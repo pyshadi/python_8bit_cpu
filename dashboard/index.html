@@ -78,12 +78,27 @@
   .python { margin-inline-start: auto; font-size: 12px; color: var(--ink-3); }
 
   /* Console */
-  .console { background: var(--chassis); border: 1px solid var(--line); border-radius: 6px; padding: 10px; display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 10px; align-items: start; }
+  .console { background: var(--chassis); border: 1px solid var(--line); border-radius: 6px; padding: 10px; display: grid; grid-template-columns: minmax(0, 1fr) var(--side-w, 420px); gap: 10px; align-items: start; }
   .side, .col { display: grid; gap: 10px; align-content: start; min-width: 0; }
+  /* A column whose panels are all collapsed narrows, giving the program and data path more room */
+  .console.reg-collapsed.mem-collapsed { --side-w: 220px; }
   @media (min-width: 1500px) {
-    .console { grid-template-columns: minmax(0, 1fr) 420px 420px; }
+    .console { grid-template-columns: minmax(0, 1fr) var(--reg-w, 420px) var(--mem-w, 420px); }
+    .console.reg-collapsed { --reg-w: 220px; }
+    .console.mem-collapsed { --mem-w: 220px; }
     .side { display: contents; }
   }
+
+  /* Collapsible panels */
+  .collapse { flex: 0 0 auto; display: inline-grid; place-items: center; width: 24px; height: 24px; margin-inline-start: -5px; padding: 0; background: transparent; border: 1px solid transparent; border-radius: 3px; color: var(--ink-3); cursor: pointer; }
+  .collapse:hover { color: var(--ink); border-color: var(--line); }
+  .collapse:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+  .collapse svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.15s ease; }
+  .module.collapsed .collapse svg { transform: rotate(-90deg); }
+  @media (prefers-reduced-motion: reduce) { .collapse svg { transition: none; } }
+  .module-head > .collapse + .subtabs, .module-head > .head-title { margin-inline-end: auto; }
+  .module.collapsed > :not(.module-head) { display: none !important; }
+  .module.collapsed > .module-head { border-bottom-color: transparent; }
   .module { background: var(--panel); border: 1px solid var(--line-soft); border-radius: 3px; box-shadow: var(--bevel); min-width: 0; display: flex; flex-direction: column; }
   .module-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px 9px; border-bottom: 1px solid var(--line-soft); }
   .module-head .meta { font-size: 11px; color: var(--ink-3); }
@@ -427,8 +442,9 @@
       </div>
 
       <div class="col">
-      <div class="module">
+      <div class="module" data-section="program">
         <div class="module-head source-head">
+          <button class="collapse" type="button" aria-expanded="true"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.25 6 7.75 9.5 4.25"/></svg></button>
           <input id="programName" class="name-input" type="text" aria-label="Program name" spellcheck="false" autocomplete="off" maxlength="60">
           <span class="meta mono" id="editorMeta"></span>
           <div class="tools">
@@ -459,8 +475,9 @@
         <div id="editorStatus" role="status">Loading Python in your browser…</div>
       </div>
 
-      <div class="module">
+      <div class="module" data-section="execution">
         <div class="module-head">
+          <button class="collapse" type="button" aria-expanded="true"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.25 6 7.75 9.5 4.25"/></svg></button>
           <div class="subtabs" role="tablist" aria-label="Execution">
             <button class="subtab" role="tab" type="button" id="tab-path" aria-controls="pane-path" aria-selected="true"><span class="engrave">Data path</span></button>
             <button class="subtab" role="tab" type="button" id="tab-trace" aria-controls="pane-trace" aria-selected="false"><span class="engrave">Trace</span></button>
@@ -509,8 +526,11 @@
 
       <div class="side">
         <div class="col">
-        <div class="module">
-          <div class="module-head"><span class="engrave">Registers</span></div>
+        <div class="module" data-section="registers">
+          <div class="module-head">
+            <button class="collapse" type="button" aria-expanded="true"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.25 6 7.75 9.5 4.25"/></svg></button>
+            <span class="engrave head-title">Registers</span>
+          </div>
           <div class="regs" id="regs"></div>
         </div>
 
@@ -518,8 +538,9 @@
 
         <div class="col">
 
-        <div class="module">
+        <div class="module" data-section="memory">
           <div class="module-head">
+            <button class="collapse" type="button" aria-expanded="true"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.25 6 7.75 9.5 4.25"/></svg></button>
             <div class="subtabs" role="tablist" aria-label="Memory">
               <button class="subtab" role="tab" type="button" id="tab-ram" aria-controls="pane-ram" aria-selected="true"><span class="engrave">RAM</span></button>
               <button class="subtab" role="tab" type="button" id="tab-rom" aria-controls="pane-rom" aria-selected="false"><span class="engrave">ROM</span></button>
@@ -723,6 +744,7 @@
                 <tr><td>Source</td><td class="soft">Columns from left: breakpoint, line number, address of the instruction on that line, code. The highlighted line is the next instruction to run.</td></tr>
                 <tr><td>Registers</td><td class="soft">Each 8-bit register shows hex, decimal and eight bit lamps (most significant on the left). PC and SP are 16-bit. F shows the four flags.</td></tr>
                 <tr><td>Output</td><td class="soft">The Output tab, after Trace, shows everything the program prints; a dot on the tab means there is new output you haven't seen. <code>out, A</code> prints A as a decimal number on its own line; <code>outc, A</code> prints A as a character (72 is H, 10 starts a new line). Reset clears it, and Back undoes printing along with everything else.</td></tr>
+                <tr><td>Collapsing</td><td class="soft">Double-click a panel's header (or press the arrow at its left) to fold the panel down to its header; do it again to open it. Choosing a tab in a folded panel opens it too. When Registers and Memory are both folded their column narrows, and this browser remembers which panels are folded.</td></tr>
                 <tr><td>Display</td><td class="soft">The 32 × 32 pixel screen at <code>F000–F3FF</code>, with a keyboard beside it: letters, digits, space, Enter and the arrow keys, lit while held. Click the screen to type on your own keyboard instead. See Screen and keys.</td></tr>
                 <tr><td>Data path</td><td class="soft">What the next instruction will do before it runs, following what the emulator's code actually does. Registers sit on the register bus; A SEL and the MUX pick the ALU's inputs. The ALU lights up only when the instruction uses it (arithmetic, logic, shifts, rotations, compares, <code>inc</code> and <code>dec</code>). Moves, stack operations, <code>call</code>, <code>ret</code> and <code>jmp</code> take the <b>direct transfer</b> path around the ALU. Conditional jumps show the decoder comparing a register (or the carry flag) and whether the jump is taken. The values on the lit wires are the ones the instruction will read and write. If it would fail, the panel heading says why.</td></tr>
                 <tr><td>Memory: map</td><td class="soft">One square per RAM byte, starting at 0000 in the top left: 64 bytes per row for 1 KB and 4 KB, 256 per row for 64 KB. Dark squares are zero, grey squares hold data, patina squares are the stack in use, brass squares are return addresses pushed by <code>call</code>, and bright squares were written by the last instruction. Click a square to show that address.</td></tr>
