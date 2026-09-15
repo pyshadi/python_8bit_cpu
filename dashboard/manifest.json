@@ -1,0 +1,21 @@
+{
+  "pyodide": "0.28.3",
+  "python": [
+    "__init__.py",
+    "alu.py",
+    "assembler.py",
+    "cpu.py",
+    "decoder.py",
+    "disassembler.py",
+    "memory.py",
+    "registers.py",
+    "session.py",
+    "trace.py"
+  ],
+  "examples": [
+    "bitcount.asm",
+    "countdown.asm",
+    "fibonacci.asm",
+    "multiply.asm"
+  ]
+}
