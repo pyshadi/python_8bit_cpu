@@ -44,6 +44,7 @@ These methods power the command-line runner and the planned Brassboard dashboard
 | --- | --- |
 | <code>step()</code> | Runs one instruction and returns a <code>StepRecord</code>: <code>address</code>, decoded <code>instruction</code>, <code>register_writes</code> and <code>ram_writes</code> as <code>(old, new)</code>, <code>next_address</code>, <code>jumped</code>, <code>halted</code>. Raises <code>RuntimeError</code> on a halted CPU. |
 | <code>run_until(max_steps=100000, on_step=None)</code> | Steps until the CPU halts, reaches an address in <code>cpu.breakpoints</code>, or hits the step limit. Returns a <code>RunResult</code> whose <code>reason</code> is <code>halted</code>, <code>breakpoint</code> or <code>step_limit</code>. A breakpoint stops before its instruction runs; calling again continues past it. |
+| <code>undo(record)</code> | Reverses the most recent <code>step()</code> using the old values in its <code>StepRecord</code>. |
 | <code>snapshot()</code> / <code>restore(snapshot)</code> | Capture and restore registers, RAM, halt state and <code>cycles</code>. |
 | <code>reset()</code> | Clears registers and RAM and sets SP to the top of RAM. Breakpoints are kept. |
 
@@ -72,7 +73,7 @@ Exit codes: 0 halted or stopped at a breakpoint, 1 assembler or runtime error, 2
 The <code>examples/</code> folder has programs to try: <code>countdown.asm</code>, <code>multiply.asm</code>, <code>bitcount.asm</code> and <code>fibonacci.asm</code>. CI runs all of them.<br>
 
 ## Brassboard dashboard
-**Open it in your browser: https://pyshadi.github.io/python_8bit_cpu/** — nothing to install. Write or pick a program, set breakpoints, step or run it, and watch the registers, memory (RAM map, hex dump, stack and ROM) and the trace. RAM can be 1 KB, 4 KB or 64 KB. The Manual tab explains every control.
+**Open it in your browser: https://pyshadi.github.io/python_8bit_cpu/** — nothing to install. Write or pick a program, set breakpoints, step or run it, and watch the registers, memory (RAM map, hex dump, stack and ROM) and the trace. RAM can be 1 KB, 4 KB or 64 KB. A data-path diagram shows what the next instruction will do before it runs, Back and clicking a trace row undo the last 1,000 instructions and edits, and register, flag and memory values can be edited in place. The Manual tab explains every control.
 
 The dashboard runs this repository's Python code in the browser with [Pyodide](https://pyodide.org). It lives in <code>dashboard/</code>:
 

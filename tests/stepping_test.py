@@ -120,6 +120,32 @@ def test_reset_restores_power_on_state_and_keeps_breakpoints():
     assert cpu.breakpoints == {0x0014}
 
 
+def test_undo_every_step_returns_to_power_on():
+    cpu, _ = fibonacci_cpu()
+    snapshots = [cpu.snapshot()]
+    records = []
+    while not cpu.halted:
+        records.append(cpu.step())
+        snapshots.append(cpu.snapshot())
+
+    for record in reversed(records):
+        snapshots.pop()
+        cpu.undo(record)
+        assert cpu.snapshot() == snapshots[-1]
+    assert cpu.cycles == 0
+
+
+def test_failed_step_leaves_no_partial_writes():
+    code = Assembler.assemble("loop: call, loop")
+    cpu = CPU(ROM(len(code), code), RAM(16))
+    with pytest.raises(IndexError, match="stack overflow"):
+        while True:
+            before = cpu.snapshot()
+            cpu.step()
+    # the failing call had already pushed its high byte and moved SP; both are put back
+    assert cpu.snapshot() == before
+
+
 def test_errors_propagate_from_step():
     code = Assembler.assemble("pop, A")
     cpu = CPU(ROM(len(code), code), RAM(16))

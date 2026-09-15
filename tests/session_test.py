@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from src.assembler import Assembler
-from src.session import TRACE_LIMIT, Session
+from src.session import HISTORY_LIMIT, TRACE_LIMIT, Session
 
 ROOT = Path(__file__).parent.parent
 FIBONACCI = (ROOT / "examples" / "fibonacci.asm").read_text()
@@ -30,7 +30,9 @@ def test_load_reports_program_and_initial_state():
     assert base64.b64decode(state["program"]["bytecode"]) == bytes(Assembler.assemble(FIBONACCI))
     assert state["program"]["label_list"] == [["loop", 0x09], ["next", 0x15]]
     assert state["current_line"] == 2
-    assert state["next"] == {"address": 0, "bytes": [0x02, 0x00, 0x00], "text": "mvi, A, 0"}
+    assert state["next"] == {"address": 0, "bytes": [0x02, 0x00, 0x00], "text": "mvi, A, 0",
+                             "mnemonic": "mvi", "operands": [["r", 0], ["i", 0]]}
+    assert state["history"] == {"size": 0, "rewind_from": None}
     assert state["registers"][14] == 1023  # SP at the top of 1 KB RAM
     assert state["memory"]["size"] == 1024 and ram_of(state) == bytes(1024)
 
@@ -195,6 +197,96 @@ def test_empty_session_state():
     state = Session().state()
     assert state["status"] == "empty" and state["program"] is None and state["registers"][14] == 1023
     assert state["memory"]["size"] == 1024
+
+
+def test_back_undoes_steps_and_edits_in_order():
+    session = loaded()
+    power_on = session.state()
+    for _ in range(4):
+        session.step()
+    after_four = session.state()
+    session.poke_register("B", 0x42)
+    session.poke_ram(0x100, 7)
+
+    result = session.back()  # the RAM edit
+    assert result["rewound"]
+    assert ram_of(result["state"])[0x100] == 0 and result["state"]["registers"][1] == 0x42
+    assert session.back()["state"] == after_four  # the register edit
+
+    for _ in range(4):
+        state = session.back()["state"]
+    assert state == power_on
+    assert session.back()["state"] == power_on  # nothing left to undo
+
+
+def test_back_after_halt_and_after_a_runtime_error():
+    session = loaded("hlt")
+    assert session.run()["state"]["status"] == "halted"
+    assert session.back()["state"]["status"] == "ready"
+
+    session = loaded("nop\npop, A")
+    assert session.run()["state"]["status"] == "error"
+    state = session.back()["state"]  # undoes the nop; the failed pop never took effect
+    assert (state["status"], state["error"], state["cycles"], state["registers"][15]) == ("ready", None, 0, 0)
+
+
+def test_rewind_matches_a_fresh_run_to_the_same_cycle():
+    session = loaded()
+    session.run(max_steps=60, quiet=True)
+    result = session.rewind(59)  # back to just before "call, next"
+    state = result["state"]
+    assert result["rewound"] and state["cycles"] == 58 and state["next"]["text"] == "call, next"
+    assert max(entry["cycle"] for entry in result["trace"]) == 58
+
+    fresh = loaded()
+    fresh.run(max_steps=58)
+    assert state == fresh.state()
+
+
+def test_rewind_reaches_back_1000_changes():
+    session = loaded("loop: jmp, loop")
+    session.run(max_steps=1500)
+    assert session.state()["history"] == {"size": HISTORY_LIMIT, "rewind_from": 501}
+    with pytest.raises(ValueError, match="cycle 500 is further back than the last 1000 changes"):
+        session.rewind(500)
+    assert session.rewind(501)["state"]["cycles"] == 500
+    with pytest.raises(ValueError, match="cycle 501 hasn't run yet"):
+        session.rewind(501)
+
+
+def test_edits_are_checked_and_let_a_failed_program_continue():
+    session = loaded("pop, A\nhlt")
+    assert session.run()["state"]["status"] == "error"
+    state = session.poke_register("SP", 0x3FE)["state"]  # give pop something to read
+    assert state["status"] == "paused" and state["error"] is None
+    assert session.run()["state"]["status"] == "halted"
+
+    with pytest.raises(ValueError, match=r"A must be between 0 and 255 \(0xFF\), got 256"):
+        session.poke_register("A", 256)
+    with pytest.raises(ValueError, match="unknown register 'Q'"):
+        session.poke_register("Q", 1)
+    with pytest.raises(ValueError, match="address 0x0400 is outside 1024 bytes of RAM"):
+        session.poke_ram(0x400, 1)
+    with pytest.raises(ValueError, match="load a program"):
+        Session().poke_ram(0, 1)
+    reply = json.loads(session.handle('{"command": "poke_ram", "address": 0, "value": 300}'))
+    assert reply == {"error": "RAM bytes must be between 0 and 255 (0xFF), got 300"}
+
+
+def test_preview_shows_the_next_instruction_without_running_it():
+    session = loaded(breakpoints=[12])
+    state = session.run(max_steps=1000)["state"]  # next: add, A, B with A=0 and B=1
+    assert state["next"]["mnemonic"] == "add"
+    assert state["next"]["operands"] == [["r", 0], ["r", 1]]
+    assert state["preview"] == {"registers": {"A": 1, "F": 0}, "ram": [], "next_address": 0x1B,
+                                "jumped": False, "halted": False}
+    assert session.state() == state
+
+    call_preview = loaded().run(max_steps=4)["state"]["preview"]  # next: call, next
+    assert call_preview["jumped"] and call_preview["next_address"] == 0x15
+    assert call_preview["ram"] == [[0x3FC, 0x0E], [0x3FD, 0x00]]
+
+    assert loaded("pop, A").state()["preview"]["error"].startswith("StackUnderflowError")
 
 
 def test_dashboard_manifest_lists_every_module_and_example():

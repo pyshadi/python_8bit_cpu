@@ -65,10 +65,17 @@ class CPU:
             self.run()  # raises the decoder's own error for the bad instruction
             raise
 
-        self.registers.write_log, self.ram.write_log = {}, {}
+        register_log, ram_log = {}, {}
+        self.registers.write_log, self.ram.write_log = register_log, ram_log
         try:
             self.run()
-            register_log, ram_log = self.registers.write_log, self.ram.write_log
+        except Exception:
+            # Instructions are all-or-nothing: put back anything written before the error.
+            for reg, old in register_log.items():
+                self.registers.registers[reg] = old
+            for addr, old in ram_log.items():
+                self.ram.memory[addr] = old
+            raise
         finally:
             self.registers.write_log = self.ram.write_log = None
 
@@ -82,6 +89,18 @@ class CPU:
             next_address=self.registers.read(Registers.PC),
             halted=self.halted,
         )
+
+    def undo(self, record):
+        """
+        Reverse the most recent step() that has not been undone yet, using the old values in its record.
+        """
+        for reg, (old, _) in record.register_writes.items():
+            self.registers.registers[reg] = old
+        for address, (old, _) in record.ram_writes.items():
+            self.ram.memory[address] = old
+        self.registers.registers[Registers.PC] = record.address
+        self.halted = False
+        self.cycles -= 1
 
     def run_until(self, max_steps=100_000, on_step=None):
         """
