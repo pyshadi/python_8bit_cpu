@@ -9,6 +9,8 @@ class Registers:
     def __init__(self, num_registers=16):
         self.registers = [0] * num_registers
         self.num_registers = num_registers
+        # When set to a dict, write() records each register's value before its first write.
+        self.write_log = None
 
     def _check_index(self, reg_num):
         if reg_num < 0 or reg_num >= self.num_registers:
@@ -20,5 +22,7 @@ class Registers:
 
     def write(self, reg_num, value):
         self._check_index(reg_num)
+        if self.write_log is not None and reg_num not in self.write_log:
+            self.write_log[reg_num] = self.registers[reg_num]
         mask = self.ADDRESS_MASK if reg_num in (Registers.SP, Registers.PC) else self.DATA_MASK
         self.registers[reg_num] = value & mask
