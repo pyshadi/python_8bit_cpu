@@ -25,6 +25,8 @@ class RAM:
         self.bit_width = bit_width
         self.size = size
         self.memory = [0] * size
+        # When set to a dict, write() records each address's value before its first write.
+        self.write_log = None
 
     def read(self, address):
         if 0 <= address < self.size:
@@ -34,6 +36,8 @@ class RAM:
 
     def write(self, address, value):
         if 0 <= address < self.size:
+            if self.write_log is not None and address not in self.write_log:
+                self.write_log[address] = self.memory[address]
             self.memory[address] = value
         else:
             raise IndexError(f"Address {address} out of bounds for RAM of size {self.size}")
