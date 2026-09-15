@@ -71,6 +71,26 @@ Exit codes: 0 halted or stopped at a breakpoint, 1 assembler or runtime error, 2
 
 The <code>examples/</code> folder has programs to try: <code>countdown.asm</code>, <code>multiply.asm</code>, <code>bitcount.asm</code> and <code>fibonacci.asm</code>. CI runs all of them.<br>
 
+## Brassboard dashboard
+**Open it in your browser: https://pyshadi.github.io/python_8bit_cpu/** — nothing to install. Write or pick a program, set breakpoints, step or run it, and watch the registers and the trace. The Manual tab explains every control.
+
+The dashboard runs this repository's Python code in the browser with [Pyodide](https://pyodide.org). It lives in <code>dashboard/</code>:
+
+| File | Role |
+| --- | --- |
+| <code>index.html</code> | Page layout, styles and the Manual |
+| <code>app.js</code> | Editor, controls, registers and trace |
+| <code>worker.js</code> | Loads Pyodide and <code>src/</code> in a Web Worker and runs the emulator at the chosen clock rate |
+| <code>manifest.json</code> | Pyodide version, and the Python files and examples to load (a test keeps it in sync with the repo) |
+
+The page talks to <code>src/session.py</code>, a small JSON command interface (<code>load</code>, <code>step</code>, <code>run</code>, <code>reset</code>, <code>set_breakpoints</code>, <code>state</code>) that is tested like the rest of the emulator. Every push to <code>main</code> runs the tests and deploys the dashboard to GitHub Pages (<code>.github/workflows/pages.yml</code>).
+
+To work on the dashboard itself, serve the repository folder and open <code>http://localhost:8000/dashboard/</code>:
+
+<pre>
+python -m http.server 8000
+</pre>
+
 ## registers.py
 
 The Registers class has a <code>read</code> method, which takes a register index and returns the value stored in that register. It also has a write method, which takes a register index and a value, and stores that value in the specified register. Invalid indices raise an <code>IndexError</code>.<br>
@@ -245,4 +265,5 @@ CI runs the tests and <code>main.py</code> on Python 3.9–3.13 for every pull r
 | <code>tests/stepping_test.py</code> | Step records, breakpoints, step limits, snapshots and reset |
 | <code>tests/examples_test.py</code> | Every program in <code>examples/</code> halts with the expected result |
 | <code>tests/cli_test.py</code> | The command-line runner: trace output, breakpoints, errors and exit codes |
+| <code>tests/session_test.py</code> | The dashboard's command interface, and that <code>dashboard/manifest.json</code> lists every module and example |
 | <code>tests/cpu_test.py</code> | End-to-end programs |

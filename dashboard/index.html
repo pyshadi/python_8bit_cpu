@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brassboard</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%23D69C4C'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Martian+Mono:wdth,wght@75..112.5,300..600&family=Schibsted+Grotesk:wght@400;500;600&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --ground: #121311; --chassis: #181916; --panel: #20211E; --raised: #2A2B27;
+    --line: #373832; --line-soft: #2B2C28;
+    --ink: #E7E2D4; --ink-2: #A8A395; --ink-3: #75726A;
+    --brass: #D69C4C; --brass-soft: rgba(214, 156, 76, 0.14);
+    --brass-glow: 0 0 0 1px rgba(214, 156, 76, 0.55), 0 0 12px rgba(214, 156, 76, 0.45);
+    --verdigris: #62AE9F; --verd-soft: rgba(98, 174, 159, 0.15);
+    --signal: #DE5B43; --signal-soft: rgba(222, 91, 67, 0.16);
+    --lamp-off: #33342E;
+    --bevel: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+    --key: linear-gradient(#34352F, #2A2B26);
+    --f-label: "Big Shoulders Display", "Arial Narrow", "Roboto Condensed", sans-serif;
+    --f-ui: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+    --f-mono: "Martian Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      color-scheme: light;
+      --ground: #E3E5DF; --chassis: #D8DBD3; --panel: #EEF0EA; --raised: #F7F8F4;
+      --line: #C2C6BB; --line-soft: #D5D8CF;
+      --ink: #1C1E1A; --ink-2: #53574E; --ink-3: #80847A;
+      --brass: #9A621E; --brass-soft: rgba(154, 98, 30, 0.12);
+      --brass-glow: 0 0 0 1px rgba(154, 98, 30, 0.6), 0 0 8px rgba(196, 128, 40, 0.35);
+      --verdigris: #2A7869; --verd-soft: rgba(42, 120, 105, 0.12);
+      --signal: #B63A24; --signal-soft: rgba(182, 58, 36, 0.12);
+      --lamp-off: #CACDC3;
+      --bevel: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+      --key: linear-gradient(#FBFCF8, #E9EBE4);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--ground); color: var(--ink); font: 15px/1.6 var(--f-ui); padding-inline: clamp(12px, 2vw, 24px); padding-block: 0 40px; }
+  button, select, input, textarea { font: inherit; color: inherit; }
+  code, kbd, .mono { font-family: var(--f-mono); font-stretch: 87.5%; font-variant-numeric: tabular-nums; }
+  code { font-size: 0.86em; }
+  h1, h2, h3 { margin: 0; text-wrap: balance; }
+  p { margin: 0; }
+  :focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+  .engrave { font-family: var(--f-label); font-weight: 600; text-transform: uppercase; letter-spacing: 0.16em; font-size: 11.5px; line-height: 1; color: var(--ink-3); }
+
+  /* App bar */
+  .appbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 26px; padding-block: 12px; margin-block-end: 12px; border-bottom: 1px solid var(--line); }
+  .wordmark { font-family: var(--f-label); font-weight: 800; font-size: 24px; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1; }
+  .wordmark span { color: var(--brass); }
+  .pagetabs { display: flex; gap: 4px; }
+  .pagetab { background: transparent; border: 0; border-bottom: 2px solid transparent; padding: 8px 12px 7px; color: var(--ink-3); cursor: pointer; }
+  .pagetab .engrave { color: inherit; font-size: 13px; }
+  .pagetab:hover { color: var(--ink-2); }
+  .pagetab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--brass); }
+  .python { margin-inline-start: auto; font-size: 12px; color: var(--ink-3); }
+
+  /* Console */
+  .console { background: var(--chassis); border: 1px solid var(--line); border-radius: 6px; padding: 10px; display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 10px; }
+  .module { background: var(--panel); border: 1px solid var(--line-soft); border-radius: 3px; box-shadow: var(--bevel); min-width: 0; display: flex; flex-direction: column; }
+  .module-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px 9px; border-bottom: 1px solid var(--line-soft); }
+  .module-head .meta { font-size: 11px; color: var(--ink-3); }
+
+  .module.transport { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 7px 10px 7px 14px; min-height: 50px; }
+  .sep { align-self: stretch; width: 1px; background: var(--line-soft); }
+  .file { display: flex; align-items: center; gap: 10px; }
+  select { height: 32px; background: var(--raised); border: 1px solid var(--line); border-radius: 3px; padding: 0 28px 0 10px; font-family: var(--f-mono); font-stretch: 87.5%; font-size: 12.5px; }
+  .keys { display: flex; gap: 6px; }
+  .key { display: inline-flex; align-items: center; justify-content: center; height: 32px; min-width: 70px; padding: 0 12px; background: var(--key); border: 1px solid var(--line); border-radius: 3px; box-shadow: var(--bevel), 0 1px 0 rgba(0, 0, 0, 0.25); cursor: pointer; font-family: var(--f-label); font-weight: 600; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; }
+  .key:hover:not([disabled]) { border-color: var(--ink-3); }
+  .key:active:not([disabled]) { transform: translateY(1px); box-shadow: var(--bevel); }
+  .key[disabled] { opacity: 0.4; cursor: not-allowed; }
+  .key.primary { border-color: var(--brass); color: var(--brass); }
+  .lamps { display: flex; gap: 14px; }
+  .lamp { display: flex; align-items: center; gap: 7px; }
+  .lamp i { display: block; width: 10px; height: 10px; border-radius: 50%; background: var(--lamp-off); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35); }
+  .lamp.on i { background: var(--brass); box-shadow: var(--brass-glow); }
+  #lamp-halt.on i { background: var(--signal); box-shadow: 0 0 10px var(--signal-soft); }
+  .lamp .engrave { font-size: 11px; }
+  .lamp.on .engrave { color: var(--ink); }
+  .clock { display: flex; align-items: center; gap: 10px; }
+  .clock input { width: 130px; }
+  .clock output { font-size: 12.5px; color: var(--brass); min-width: 54px; }
+  input[type="range"] { -webkit-appearance: none; appearance: none; height: 18px; background: transparent; margin: 0; }
+  input[type="range"]::-webkit-slider-runnable-track { height: 3px; background: var(--line); border-radius: 2px; }
+  input[type="range"]::-moz-range-track { height: 3px; background: var(--line); border-radius: 2px; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 18px; margin-top: -7.5px; background: var(--key); border: 1px solid var(--brass); border-radius: 2px; }
+  input[type="range"]::-moz-range-thumb { width: 12px; height: 18px; background: var(--raised); border: 1px solid var(--brass); border-radius: 2px; }
+  .counter { margin-inline-start: auto; display: flex; align-items: baseline; gap: 10px; padding-inline-end: 4px; }
+  #cycle { font-size: 18px; line-height: 1; }
+  #cycle s { text-decoration: none; color: var(--ink-3); }
+
+  /* Editor */
+  .editor-body { display: grid; grid-template-columns: 96px minmax(0, 1fr); height: clamp(360px, 58vh, 660px); overflow: hidden; font-family: var(--f-mono); font-stretch: 87.5%; font-size: 13px; line-height: 22px; }
+  .gutter-clip { overflow: hidden; border-right: 1px solid var(--line-soft); }
+  #gutter { padding-block: 8px; will-change: transform; }
+  .g-row { display: grid; grid-template-columns: 20px 28px 1fr; align-items: center; height: 22px; font-size: 11px; color: var(--ink-3); user-select: none; }
+  .g-row.code { cursor: pointer; }
+  .g-row .bp { justify-self: center; width: 8px; height: 8px; border-radius: 50%; }
+  .g-row.code:hover .bp { box-shadow: inset 0 0 0 1px var(--signal); }
+  .g-row.bp-on .bp { background: var(--signal); box-shadow: none; }
+  .g-row .no { text-align: right; padding-inline-end: 8px; }
+  .g-row.cur { background: var(--brass-soft); }
+  .g-row.cur .ad, .g-row.cur .no { color: var(--brass); }
+  .g-row.err { background: var(--signal-soft); }
+  .g-row.err .no { color: var(--signal); }
+  .code-area { position: relative; overflow: hidden; }
+  #highlight, #source { margin: 0; padding: 8px 12px; font-family: inherit; font-stretch: inherit; font-size: inherit; line-height: 22px; letter-spacing: 0; white-space: pre; tab-size: 8; font-variant-ligatures: none; }
+  #highlight { position: absolute; top: 0; left: 0; min-width: 100%; pointer-events: none; will-change: transform; }
+  .hl-line { height: 22px; }
+  .hl-line.cur { background: var(--brass-soft); box-shadow: inset 2px 0 0 var(--brass); }
+  .hl-line.err { background: var(--signal-soft); box-shadow: inset 2px 0 0 var(--signal); }
+  #source { position: absolute; inset: 0; width: 100%; height: 100%; resize: none; border: 0; outline: 0; background: transparent; color: transparent; caret-color: var(--ink); overflow: auto; }
+  #source::selection { background: rgba(214, 156, 76, 0.32); color: transparent; }
+  .mn { color: var(--ink); font-weight: 500; }
+  .rg { color: var(--brass); }
+  .nm { color: var(--verdigris); }
+  .lb { color: var(--ink); font-weight: 600; }
+  .cm { color: var(--ink-3); }
+  #editorStatus { margin: 0 12px 12px; padding: 8px 10px; min-height: 38px; border: 1px solid var(--line-soft); border-radius: 2px; display: flex; justify-content: space-between; gap: 10px; font-family: var(--f-mono); font-stretch: 87.5%; font-size: 12px; color: var(--ink-2); }
+  #editorStatus.good b { color: var(--verdigris); font-weight: 500; }
+  #editorStatus.bad { color: var(--signal); border-color: var(--signal); background: var(--signal-soft); }
+
+  /* Registers */
+  .regs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 12px; }
+  .reg { background: var(--raised); border: 1px solid var(--line-soft); border-radius: 2px; padding: 8px 9px 7px; display: grid; gap: 6px; align-content: start; }
+  .reg .top { display: flex; justify-content: space-between; align-items: baseline; }
+  .reg .name { font-family: var(--f-label); font-weight: 800; font-size: 15px; letter-spacing: 0.08em; }
+  .reg .hex { font-family: var(--f-mono); font-stretch: 87.5%; font-size: 17px; line-height: 1; }
+  .reg .dec { font-family: var(--f-mono); font-stretch: 87.5%; font-size: 10.5px; color: var(--ink-3); }
+  .reg .bits { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
+  .reg .bits i { height: 5px; border-radius: 1px; background: var(--lamp-off); }
+  .reg .bits i.on { background: var(--brass); }
+  .reg.changed { border-color: var(--verdigris); background: linear-gradient(var(--verd-soft), var(--verd-soft)), var(--raised); }
+  .reg.changed .name { color: var(--verdigris); }
+  .reg.zero .hex { color: var(--ink-3); }
+  .flags { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; }
+  .flag { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .flag i { width: 8px; height: 8px; border-radius: 50%; background: var(--lamp-off); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35); }
+  .flag.on i { background: var(--brass); box-shadow: var(--brass-glow); }
+  .flag b { font-family: var(--f-label); font-weight: 800; font-size: 10px; line-height: 1; color: var(--ink-3); }
+  .flag.on b { color: var(--ink); }
+
+  /* Trace */
+  .trace { grid-column: 1 / -1; }
+  #traceScroll { max-height: 280px; overflow: auto; }
+  .tape { width: 100%; border-collapse: collapse; font-family: var(--f-mono); font-stretch: 87.5%; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .tape th { position: sticky; top: 0; background: var(--panel); text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line-soft); font-family: var(--f-label); font-weight: 600; font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); }
+  .tape td { padding: 4px 12px; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+  .tape td.c, .tape td.a, .tape td.b { color: var(--ink-3); }
+  .tape td.fx { width: 100%; color: var(--ink-2); }
+  .tape .w { color: var(--verdigris); }
+  .tape .j { color: var(--brass); }
+  .tape .dim { color: var(--ink-3); }
+  .tape .h { color: var(--signal); }
+  .tape tr.next td { background: var(--brass-soft); }
+  .tape tr.next td.c { color: var(--brass); }
+  .empty-trace { padding: 14px 12px; color: var(--ink-3); font-size: 13px; }
+
+  /* Manual */
+  .manual { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 48px; align-items: start; padding-block: 24px; }
+  .toc { position: sticky; top: 16px; display: grid; gap: 2px; }
+  .toc a { color: var(--ink-2); text-decoration: none; font-size: 14px; padding: 5px 0 5px 12px; border-left: 1px solid var(--line); }
+  .toc a:hover { color: var(--ink); border-left-color: var(--brass); }
+  .manual-body { display: grid; gap: 52px; min-width: 0; max-width: 980px; }
+  .manual-body section { display: grid; gap: 18px; scroll-margin-top: 16px; }
+  h2 { font-family: var(--f-label); font-weight: 800; font-size: 32px; letter-spacing: 0.04em; text-transform: uppercase; line-height: 1; }
+  h3 { font-size: 16px; font-weight: 600; }
+  .muted { color: var(--ink-2); max-width: 68ch; }
+  .steps { margin: 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: 12px; max-width: 70ch; }
+  .steps li { counter-increment: s; display: grid; grid-template-columns: 30px 1fr; gap: 12px; color: var(--ink-2); }
+  .steps li::before { content: counter(s); font-family: var(--f-label); font-weight: 800; font-size: 20px; line-height: 1.2; color: var(--brass); }
+  .steps b { color: var(--ink); font-weight: 600; }
+  kbd { font-size: 11.5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 3px; padding: 1px 6px; background: var(--raised); white-space: nowrap; }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 3px; background: var(--panel); }
+  table.doc { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.doc th, table.doc td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line-soft); }
+  table.doc tr:last-child td { border-bottom: 0; }
+  table.doc th { font-family: var(--f-label); font-weight: 600; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); }
+  table.doc td:first-child { font-weight: 600; white-space: nowrap; }
+  table.doc td.soft { color: var(--ink-2); }
+  .meaning { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .meaning > div { border: 1px solid var(--line); border-radius: 3px; background: var(--panel); padding: 14px; display: grid; gap: 8px; align-content: start; }
+  .meaning .swatch { display: flex; align-items: center; gap: 8px; }
+  .meaning .swatch i { width: 12px; height: 12px; border-radius: 50%; }
+  .meaning p { font-size: 14px; color: var(--ink-2); }
+  .ops { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .ops > div { border: 1px solid var(--line); border-radius: 3px; background: var(--panel); padding: 12px 14px; }
+  .ops h3 { margin-block-end: 8px; }
+  .ops dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
+  .ops dt { font-family: var(--f-mono); font-stretch: 87.5%; }
+  .ops dd { margin: 0; color: var(--ink-2); font-family: var(--f-mono); font-stretch: 87.5%; font-size: 12px; }
+  .rules { margin: 0; padding-inline-start: 18px; display: grid; gap: 6px; color: var(--ink-2); max-width: 72ch; }
+
+  @media (max-width: 980px) {
+    .console { grid-template-columns: minmax(0, 1fr); }
+    .counter { margin-inline-start: 0; }
+    .sep { display: none; }
+    .manual, .meaning, .ops { grid-template-columns: 1fr; }
+    .toc { position: static; }
+  }
+  @media (max-width: 480px) {
+    .regs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .editor-body { grid-template-columns: 70px minmax(0, 1fr); }
+    .g-row { grid-template-columns: 16px 24px 1fr; }
+    .g-row .ad { display: none; }
+  }
+</style>
+</head>
+<body>
+  <header class="appbar">
+    <span class="wordmark">Brass<span>board</span></span>
+    <nav class="pagetabs" role="tablist" aria-label="Sections">
+      <button class="pagetab" role="tab" type="button" id="t-console" aria-controls="p-console" aria-selected="true"><span class="engrave">Console</span></button>
+      <button class="pagetab" role="tab" type="button" id="t-manual" aria-controls="p-manual" aria-selected="false"><span class="engrave">Manual</span></button>
+    </nav>
+    <span class="python mono" id="python">Loading Python…</span>
+  </header>
+
+  <main id="p-console" role="tabpanel" aria-labelledby="t-console">
+    <div class="console">
+      <div class="module transport">
+        <div class="file">
+          <label class="engrave" for="program">Program</label>
+          <select id="program" disabled><option>fibonacci.asm</option></select>
+        </div>
+        <span class="sep"></span>
+        <div class="keys">
+          <button class="key" type="button" id="k-reset" title="Reset (Shift+F5)" aria-keyshortcuts="Shift+F5" disabled>Reset</button>
+          <button class="key primary" type="button" id="k-step" title="Step (F10)" aria-keyshortcuts="F10" disabled>Step</button>
+          <button class="key" type="button" id="k-run" title="Run / pause (F5)" aria-keyshortcuts="F5" disabled>Run</button>
+        </div>
+        <span class="sep"></span>
+        <div class="lamps" aria-live="polite">
+          <div class="lamp" id="lamp-run"><i></i><span class="engrave">Run</span></div>
+          <div class="lamp" id="lamp-break"><i></i><span class="engrave">Break</span></div>
+          <div class="lamp" id="lamp-halt"><i></i><span class="engrave">Halt</span></div>
+        </div>
+        <span class="sep"></span>
+        <div class="clock">
+          <label class="engrave" for="clock">Clock</label>
+          <input type="range" id="clock" min="0" max="100" value="27">
+          <output class="mono" id="clockOut" for="clock">12 Hz</output>
+        </div>
+        <div class="counter">
+          <span class="engrave">Cycle</span>
+          <span class="mono" id="cycle"><s>00000</s>0</span>
+        </div>
+      </div>
+
+      <div class="module">
+        <div class="module-head"><span class="engrave">Source</span><span class="meta mono" id="editorMeta"></span></div>
+        <div class="editor-body">
+          <div class="gutter-clip"><div id="gutter"></div></div>
+          <div class="code-area">
+            <div id="highlight" aria-hidden="true"></div>
+            <textarea id="source" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off" aria-label="Assembly source"></textarea>
+          </div>
+        </div>
+        <div id="editorStatus" role="status">Loading Python in your browser…</div>
+      </div>
+
+      <div class="module">
+        <div class="module-head"><span class="engrave">Registers</span></div>
+        <div class="regs" id="regs"></div>
+      </div>
+
+      <div class="module trace">
+        <div class="module-head"><span class="engrave">Trace</span><span class="meta mono" id="traceMeta"></span></div>
+        <div id="traceScroll">
+          <table class="tape">
+            <thead><tr><th>Cycle</th><th>Addr</th><th>Bytes</th><th>Instruction</th><th>Effect</th></tr></thead>
+            <tbody id="traceBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="p-manual" role="tabpanel" aria-labelledby="t-manual" hidden>
+    <div class="manual">
+      <nav class="toc" aria-label="Manual contents">
+        <a href="#m-start">Getting started</a>
+        <a href="#m-controls">Controls</a>
+        <a href="#m-colors">Lamps and colors</a>
+        <a href="#m-panels">Panels</a>
+        <a href="#m-asm">Assembly reference</a>
+      </nav>
+      <div class="manual-body">
+        <section id="m-start">
+          <span class="engrave">Manual</span>
+          <h2>Getting started</h2>
+          <p class="muted">Brassboard runs the real Python emulator from this repository inside your browser. Nothing is installed; the first visit downloads Python (about 10 MB), and later visits use the cached copy.</p>
+          <ol class="steps">
+            <li><span><b>Pick a program</b> from Program, or type your own in Source. Your text is kept in this browser.</span></li>
+            <li><span><b>Assemble</b> happens automatically as you type. Errors appear under Source and mark their line; <kbd>⌘↵</kbd> or <kbd>Ctrl↵</kbd> assembles immediately.</span></li>
+            <li><span><b>Set breakpoints</b> by clicking a line number, or with <kbd>F9</kbd> on the line with the cursor. Only lines with an instruction can hold one.</span></li>
+            <li><span><b>Step</b> one instruction with <kbd>F10</kbd>, or <b>run</b> with <kbd>F5</kbd> at the Clock rate. The machine stops at a breakpoint, <code>hlt</code> or an error.</span></li>
+            <li><span><b>Read the result</b>: registers written by the last instruction are outlined, and every instruction appears in Trace.</span></li>
+          </ol>
+        </section>
+
+        <section id="m-controls">
+          <h2>Controls</h2>
+          <p class="muted">On a Mac, function keys may need the <kbd>fn</kbd> key.</p>
+          <div class="tablewrap">
+            <table class="doc">
+              <thead><tr><th>Control</th><th>Shortcut</th><th>What it does</th></tr></thead>
+              <tbody>
+                <tr><td>Program</td><td></td><td class="soft">Loads an example program into Source. Editing it switches to “My program”.</td></tr>
+                <tr><td>Reset</td><td><kbd>⇧F5</kbd></td><td class="soft">Clears registers and RAM, sets PC to 0000 and SP to the top of RAM. Breakpoints are kept.</td></tr>
+                <tr><td>Step</td><td><kbd>F10</kbd></td><td class="soft">Runs one instruction.</td></tr>
+                <tr><td>Run / Pause</td><td><kbd>F5</kbd></td><td class="soft">Runs at the Clock rate until a breakpoint, <code>hlt</code>, an error, or Pause. Run from a breakpoint continues past it.</td></tr>
+                <tr><td>Breakpoint</td><td><kbd>F9</kbd></td><td class="soft">Adds or removes a breakpoint on the line with the cursor.</td></tr>
+                <tr><td>Assemble</td><td><kbd>⌘↵</kbd></td><td class="soft">Assembles Source now and resets the machine. Also happens automatically shortly after you stop typing.</td></tr>
+                <tr><td>Clock</td><td></td><td class="soft">Run speed from 1 Hz to 10 kHz. At “max” the machine runs as fast as it can and the panels refresh about 60 times per second.</td></tr>
+                <tr><td>Cycle</td><td></td><td class="soft">Instructions executed since the last reset.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="m-colors">
+          <h2>Lamps and colors</h2>
+          <p class="muted">Color on the console always describes the machine.</p>
+          <div class="meaning">
+            <div><span class="swatch"><i style="background:var(--brass)"></i><h3>Brass: live</h3></span><p>The current line, set flags and bits, jumps in Trace, and the Run and Break lamps.</p></div>
+            <div><span class="swatch"><i style="background:var(--verdigris)"></i><h3>Patina: written</h3></span><p>Registers written by the last instruction, and writes in Trace.</p></div>
+            <div><span class="swatch"><i style="background:var(--signal)"></i><h3>Signal: stopped</h3></span><p>Breakpoints, the Halt lamp, and assembler or runtime errors.</p></div>
+          </div>
+          <div class="tablewrap">
+            <table class="doc">
+              <thead><tr><th>Lamp</th><th>Lit when</th></tr></thead>
+              <tbody>
+                <tr><td>Run</td><td class="soft">The machine is running at the Clock rate.</td></tr>
+                <tr><td>Break</td><td class="soft">Stopped at a breakpoint, after a step, or paused.</td></tr>
+                <tr><td>Halt</td><td class="soft">The program reached <code>hlt</code> or stopped with a runtime error. Reset to run it again.</td></tr>
+                <tr><td>Z · C · V · S</td><td class="soft">Zero, carry, overflow and sign flags in register F, set by the last arithmetic, logic or compare instruction.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="m-panels">
+          <h2>Panels</h2>
+          <div class="tablewrap">
+            <table class="doc">
+              <tbody>
+                <tr><td>Source</td><td class="soft">Columns from left: breakpoint, line number, address of the instruction on that line, code. The highlighted line is the next instruction to run.</td></tr>
+                <tr><td>Registers</td><td class="soft">Each 8-bit register shows hex, decimal and eight bit lamps (most significant on the left). PC and SP are 16-bit. F shows the four flags.</td></tr>
+                <tr><td>Trace</td><td class="soft">The most recent 200 instructions: cycle, address, bytes, instruction and its effect. The highlighted last row is the next instruction.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="m-asm">
+          <h2>Assembly reference</h2>
+          <ul class="rules">
+            <li>Operands are separated by commas: <code>mvi, A, 10</code>. A label is a name followed by a colon, on its own line or before an instruction: <code>loop: dec, C</code>.</li>
+            <li><code>;</code> starts a comment. Mnemonics and register names are not case-sensitive.</li>
+            <li>Numbers can be decimal, <code>0x10</code>, <code>0b101</code> or <code>0o17</code>. Immediate values (<code>imm</code>) are 0–255; addresses (<code>mem</code>) and labels are 0–FFFF.</li>
+            <li>Registers: <code>A–L</code>, <code>X</code>, <code>Y</code>, <code>SP</code>, <code>PC</code>. <code>F</code> holds the flags and is overwritten by arithmetic.</li>
+            <li>Instructions with two registers (<code>add, B, C</code>) put the result in <code>A</code>; forms with <code>imm</code> or <code>mem</code> write back to their register. RAM is 1 KB, and the stack starts at its top.</li>
+          </ul>
+          <div class="ops">
+            <div><h3>Data</h3><dl><dt>mov</dt><dd>reg, reg</dd><dt>mvi</dt><dd>reg, imm</dd><dt>ld</dt><dd>reg, mem</dd><dt>st</dt><dd>reg, mem</dd></dl></div>
+            <div><h3>Arithmetic</h3><dl><dt>add · sub · mul · div</dt><dd>reg, reg</dd><dt>addi · subi · muli · divi</dt><dd>reg, imm</dd><dt>adda · suba · mula · diva</dt><dd>reg, mem</dd><dt>inc · dec</dt><dd>reg</dd></dl></div>
+            <div><h3>Logic</h3><dl><dt>andd · ord · xord</dt><dd>reg, reg</dd><dt>andi · ori · xori</dt><dd>reg, imm</dd><dt>anda · ora · xora</dt><dd>reg, mem</dd><dt>inv · rtl · rtr · sar</dt><dd>reg</dd><dt>shl · shr</dt><dd>reg, imm</dd></dl></div>
+            <div><h3>Compare</h3><dl><dt>cmp</dt><dd>reg, reg</dd><dt>cmpi</dt><dd>reg, imm</dd><dt>cmpa</dt><dd>reg, mem</dd></dl></div>
+            <div><h3>Jump</h3><dl><dt>jmp · jc · jnc</dt><dd>mem</dd><dt>jz · jnz</dt><dd>reg, mem</dd><dt>je · ja · jae · jb · jbe</dt><dd>reg, imm, mem</dd></dl></div>
+            <div><h3>Stack and control</h3><dl><dt>push · pop</dt><dd>reg</dd><dt>pushi</dt><dd>imm</dd><dt>pusha</dt><dd>mem</dd><dt>call</dt><dd>mem</dd><dt>ret · hlt · nop</dt><dd>none</dd></dl></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
