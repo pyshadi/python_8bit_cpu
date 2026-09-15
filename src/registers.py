@@ -1,6 +1,7 @@
 class Registers:
     # Constants for register indices
     A, B, C, D, E, F, G, H, I, J, K, L, X, Y, SP, PC = range(16)
+    NAMES = ("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "X", "Y", "SP", "PC")
 
     DATA_MASK = 0xFF      # general purpose registers and flags are 8-bit
     ADDRESS_MASK = 0xFFFF  # SP and PC are 16-bit

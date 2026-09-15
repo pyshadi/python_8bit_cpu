@@ -1,5 +1,23 @@
+from dataclasses import dataclass
+
+
 class AssemblerError(ValueError):
     pass
+
+
+@dataclass
+class Program:
+    """
+    The result of assembling source code.
+    """
+    bytecode: list
+    labels: dict          # label name -> address
+    line_addresses: dict  # source line number -> address of the instruction on that line
+
+    @property
+    def address_lines(self):
+        """Address of each instruction -> the source line it came from."""
+        return {address: line for line, address in self.line_addresses.items()}
 
 
 class Assembler:
@@ -116,6 +134,13 @@ class Assembler:
         """
         Assemble the given source code into bytecode.
         """
+        return cls.assemble_program(source).bytecode
+
+    @classmethod
+    def assemble_program(cls, source):
+        """
+        Assemble the given source code into a Program: bytecode plus labels and a source map.
+        """
         lines = list(cls._parse_lines(source))
 
         # First pass: record the address of every label.
@@ -134,12 +159,14 @@ class Assembler:
 
         # Second pass: translate the opcodes and operands.
         bytecode = []
+        line_addresses = {}
         for line_number, _, parts in lines:
             if not parts:
                 continue
+            line_addresses[line_number] = len(bytecode)
             opcode, kinds = cls._lookup_instruction(line_number, parts[0], parts[1:])
             bytecode.append(opcode)
             for kind, part in zip(kinds, parts[1:]):
                 bytecode.extend(cls._encode_operand(line_number, kind, part, labels))
 
-        return bytecode
+        return Program(bytecode, labels, line_addresses)
