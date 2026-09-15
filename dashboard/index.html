@@ -157,7 +157,18 @@
 
   /* Trace */
   .trace { grid-column: 1 / -1; }
-  #traceScroll { max-height: 280px; overflow: auto; }
+  #traceScroll { height: 440px; overflow: auto; }
+
+  /* Programs */
+  .source-head { flex-wrap: wrap; row-gap: 6px; justify-content: flex-start; }
+  .name-input { flex: 1 1 150px; min-width: 0; height: 28px; margin-inline-start: -7px; padding: 0 6px; background: transparent; border: 1px solid transparent; border-radius: 2px; font-family: var(--f-label); font-weight: 800; font-size: 15px; letter-spacing: 0.06em; color: var(--ink); }
+  .name-input:hover:not(:disabled), .name-input:focus { border-color: var(--line); background: var(--raised); }
+  .name-input:disabled { color: var(--ink-2); opacity: 1; }
+  .tools { display: flex; flex-wrap: wrap; gap: 4px; margin-inline-start: auto; }
+  .tool { height: 26px; padding: 0 9px; background: transparent; border: 1px solid var(--line); border-radius: 3px; font-family: var(--f-label); font-weight: 600; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-2); cursor: pointer; }
+  .tool:hover:not([disabled]) { color: var(--ink); border-color: var(--ink-3); }
+  .tool[disabled] { opacity: 0.4; cursor: not-allowed; }
+  .tool.danger:hover:not([disabled]) { color: var(--signal); border-color: var(--signal); }
   .tape { width: 100%; border-collapse: collapse; font-family: var(--f-mono); font-stretch: 87.5%; font-size: 12px; font-variant-numeric: tabular-nums; }
   .tape th { position: sticky; top: 0; background: var(--panel); text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line-soft); font-family: var(--f-label); font-weight: 600; font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); }
   .tape td { padding: 4px 12px; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
@@ -172,7 +183,7 @@
   .empty-trace { padding: 14px 12px; color: var(--ink-3); font-size: 13px; }
 
   /* Data path */
-  .datapath { display: block; width: 100%; max-width: 760px; height: auto; margin-inline: auto; padding: 10px 12px 12px; }
+  .datapath { display: block; width: 100%; max-width: 980px; height: auto; margin-inline: auto; padding: 10px 12px 12px; }
   .datapath .box { fill: var(--raised); stroke: var(--ink-3); stroke-width: 1.5; }
   .datapath .box.act { stroke: var(--brass); stroke-width: 2; }
   .datapath .box.read { stroke: var(--verdigris); stroke-width: 2; }
@@ -355,7 +366,18 @@
 
       <div class="col">
       <div class="module">
-        <div class="module-head"><span class="engrave">Source</span><span class="meta mono" id="editorMeta"></span></div>
+        <div class="module-head source-head">
+          <input id="programName" class="name-input" type="text" aria-label="Program name" spellcheck="false" autocomplete="off" maxlength="60">
+          <span class="meta mono" id="editorMeta"></span>
+          <div class="tools">
+            <button class="tool" type="button" id="prog-new">New</button>
+            <button class="tool" type="button" id="prog-duplicate">Duplicate</button>
+            <button class="tool" type="button" id="prog-open">Open…</button>
+            <button class="tool" type="button" id="prog-download">Download</button>
+            <button class="tool danger" type="button" id="prog-delete">Delete</button>
+          </div>
+          <input id="prog-file" type="file" accept=".asm,.txt,text/plain" hidden>
+        </div>
         <div class="editor-body">
           <div class="gutter-clip"><div id="gutter"></div></div>
           <div class="code-area">
@@ -367,8 +389,30 @@
       </div>
 
       <div class="module">
-        <div class="module-head"><span class="engrave">Data path</span><span class="meta mono path-meta" id="pathMeta"></span></div>
-        <svg id="datapath" class="datapath" viewBox="0 0 648 424" role="img" aria-label="Data path of the next instruction"></svg>
+        <div class="module-head">
+          <div class="subtabs" role="tablist" aria-label="Execution">
+            <button class="subtab" role="tab" type="button" id="tab-path" aria-controls="pane-path" aria-selected="true"><span class="engrave">Data path</span></button>
+            <button class="subtab" role="tab" type="button" id="tab-trace" aria-controls="pane-trace" aria-selected="false"><span class="engrave">Trace</span></button>
+          </div>
+          <span class="meta mono path-meta" id="pathMeta"></span>
+          <div class="segmented" id="traceFilters" role="group" aria-label="Show" hidden>
+            <button class="seg" type="button" data-trace="all" aria-pressed="true"><span class="engrave">All</span></button>
+            <button class="seg" type="button" data-trace="ram" aria-pressed="false"><span class="engrave">Memory writes</span></button>
+            <button class="seg" type="button" data-trace="jump" aria-pressed="false"><span class="engrave">Jumps</span></button>
+          </div>
+          <span class="meta mono" id="traceMeta" hidden></span>
+        </div>
+        <div id="pane-path" role="tabpanel" aria-labelledby="tab-path">
+          <svg id="datapath" class="datapath" viewBox="0 0 820 436" role="img" aria-label="Data path of the next instruction"></svg>
+        </div>
+        <div id="pane-trace" role="tabpanel" aria-labelledby="tab-trace" hidden>
+          <div id="traceScroll">
+            <table class="tape">
+              <thead><tr><th>Cycle</th><th>Addr</th><th>Bytes</th><th>Instruction</th><th>Effect</th></tr></thead>
+              <tbody id="traceBody"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
       </div>
 
@@ -408,23 +452,6 @@
         </div>
       </div>
 
-      <div class="module trace">
-        <div class="module-head">
-          <span class="engrave">Trace</span>
-          <div class="segmented" role="group" aria-label="Show">
-            <button class="seg" type="button" data-trace="all" aria-pressed="true"><span class="engrave">All</span></button>
-            <button class="seg" type="button" data-trace="ram" aria-pressed="false"><span class="engrave">Memory writes</span></button>
-            <button class="seg" type="button" data-trace="jump" aria-pressed="false"><span class="engrave">Jumps</span></button>
-          </div>
-          <span class="meta mono" id="traceMeta"></span>
-        </div>
-        <div id="traceScroll">
-          <table class="tape">
-            <thead><tr><th>Cycle</th><th>Addr</th><th>Bytes</th><th>Instruction</th><th>Effect</th></tr></thead>
-            <tbody id="traceBody"></tbody>
-          </table>
-        </div>
-      </div>
     </div>
   </main>
 
@@ -432,6 +459,7 @@
     <div class="manual">
       <nav class="toc" aria-label="Manual contents">
         <a href="#m-start">Getting started</a>
+        <a href="#m-programs">Programs</a>
         <a href="#m-controls">Controls</a>
         <a href="#m-colors">Lamps and colors</a>
         <a href="#m-panels">Panels</a>
@@ -443,12 +471,31 @@
           <h2>Getting started</h2>
           <p class="muted">Brassboard runs the real Python emulator from this repository inside your browser. Nothing is installed; the first visit downloads Python (about 10 MB), and later visits use the cached copy.</p>
           <ol class="steps">
-            <li><span><b>Pick a program</b> from Program, or type your own in Source. Your text is kept in this browser.</span></li>
+            <li><span><b>Pick a program</b> from Program, or press <b>New</b> above Source to start your own. Your programs are saved in this browser as you type.</span></li>
             <li><span><b>Assemble</b> happens automatically as you type. Errors appear under Source and mark their line; <kbd>⌘↵</kbd> or <kbd>Ctrl↵</kbd> assembles immediately.</span></li>
             <li><span><b>Set breakpoints</b> by clicking a line number, or with <kbd>F9</kbd> on the line with the cursor. Only lines with an instruction can hold one.</span></li>
             <li><span><b>Step</b> one instruction with <kbd>F10</kbd>, or <b>run</b> with <kbd>F5</kbd> at the Clock rate. The machine stops at a breakpoint, <code>hlt</code> or an error.</span></li>
             <li><span><b>Read the result</b>: registers written by the last instruction are outlined, and every instruction appears in Trace.</span></li>
           </ol>
+        </section>
+
+        <section id="m-programs">
+          <h2>Programs</h2>
+          <p class="muted">Your programs are saved automatically as you type. They are kept in this browser on this computer only, so use Download to keep a copy elsewhere or move a program to another machine.</p>
+          <div class="tablewrap">
+            <table class="doc">
+              <thead><tr><th>Action</th><th>What it does</th></tr></thead>
+              <tbody>
+                <tr><td>New</td><td class="soft">Starts a new program named “Untitled” under My programs and selects its name so you can rename it.</td></tr>
+                <tr><td>Rename</td><td class="soft">Click the program name at the top of Source, type a new name and press Enter.</td></tr>
+                <tr><td>Examples</td><td class="soft">Examples can't be changed. Typing in one saves your version as a copy under My programs; the example stays as it was.</td></tr>
+                <tr><td>Duplicate</td><td class="soft">Saves a copy of the current program under My programs.</td></tr>
+                <tr><td>Open…</td><td class="soft">Adds an <code>.asm</code> file from your computer to My programs.</td></tr>
+                <tr><td>Download</td><td class="soft">Saves the current program as an <code>.asm</code> file. It also runs with <code>python3 -m src run</code>.</td></tr>
+                <tr><td>Delete</td><td class="soft">Removes the current program from My programs after you confirm. Examples can't be deleted.</td></tr>
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section id="m-controls">
@@ -458,7 +505,7 @@
             <table class="doc">
               <thead><tr><th>Control</th><th>Shortcut</th><th>What it does</th></tr></thead>
               <tbody>
-                <tr><td>Program</td><td></td><td class="soft">Loads an example program into Source. Editing it switches to “My program”.</td></tr>
+                <tr><td>Program</td><td></td><td class="soft">Switches between your programs and the examples.</td></tr>
                 <tr><td>RAM</td><td></td><td class="soft">RAM size: 1 KB, 4 KB or 64 KB (the full 16-bit address space). Changing it reloads the program on a fresh machine.</td></tr>
                 <tr><td>Reset</td><td><kbd>⇧F5</kbd></td><td class="soft">Clears registers and RAM, sets PC to 0000 and SP to the top of RAM. Breakpoints are kept.</td></tr>
                 <tr><td>Back</td><td><kbd>⇧F10</kbd></td><td class="soft">Undoes the last instruction or value edit. Back reaches through the last 1,000 instructions and edits.</td></tr>
@@ -509,7 +556,7 @@
                 <tr><td>Memory: dump</td><td class="soft">Eight rows of RAM around SP (outlined in brass). Type an address (<code>0x0100</code>, <code>256</code>) or a label and press Enter to show that area instead; Follow SP returns to the stack. Click a byte to select it.</td></tr>
                 <tr><td>Memory: stack</td><td class="soft">The stack from the top (SP) down: pushed values in decimal, and return addresses as <code>ret 000E (label)</code>.</td></tr>
                 <tr><td>Memory: ROM</td><td class="soft">The assembled program bytes. The next instruction is filled in brass; bytes where a breakpoint stops are outlined in red.</td></tr>
-                <tr><td>Trace</td><td class="soft">Recent instructions: cycle, address, bytes, instruction and its effect. All shows the last 200 instructions with the next one highlighted; Memory writes and Jumps each keep the last 200 of their kind, even from long runs.</td></tr>
+                <tr><td>Trace</td><td class="soft">The Trace tab next to Data path lists recent instructions: cycle, address, bytes, instruction and its effect. All shows the last 200 instructions with the next one highlighted; Memory writes and Jumps each keep the last 200 of their kind, even from long runs.</td></tr>
               </tbody>
             </table>
           </div>

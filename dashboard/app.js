@@ -1,4 +1,5 @@
-// Brassboard console: editor, controls, registers, data path, memory and trace. The emulator runs in worker.js.
+// Brassboard console: programs, editor, controls, registers, data path, trace and memory.
+// The emulator runs in worker.js.
 
 const REGISTER_NAMES = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "X", "Y", "SP", "PC"];
 const REGISTERS = new Set(REGISTER_NAMES);
@@ -11,6 +12,7 @@ const TRACE_KEEP = 200;
 const DUMP_ROWS = 8;
 const STACK_ROWS = 8;
 const DEFAULT_EXAMPLE = "fibonacci.asm";
+const NEW_PROGRAM = "; new program\n\n        hlt\n";
 
 const $ = (id) => document.getElementById(id);
 const el = {
@@ -19,10 +21,12 @@ const el = {
   clock: $("clock"), clockOut: $("clockOut"), cycle: $("cycle"),
   source: $("source"), highlight: $("highlight"), gutter: $("gutter"), editorStatus: $("editorStatus"),
   editorMeta: $("editorMeta"), regs: $("regs"), traceBody: $("traceBody"), traceScroll: $("traceScroll"),
-  traceMeta: $("traceMeta"), python: $("python"),
+  traceMeta: $("traceMeta"), traceFilters: $("traceFilters"), python: $("python"),
   ramMap: $("ramMap"), memAddress: $("memAddress"), memFollow: $("memFollow"), ramDump: $("ramDump"),
   stackList: $("stackList"), romDump: $("romDump"), memMeta: $("memMeta"),
   pathMeta: $("pathMeta"), datapath: $("datapath"),
+  programName: $("programName"), progNew: $("prog-new"), progDuplicate: $("prog-duplicate"),
+  progOpen: $("prog-open"), progDownload: $("prog-download"), progDelete: $("prog-delete"), progFile: $("prog-file"),
 };
 
 // ---------- Per-viewer storage (best effort) ----------
@@ -52,12 +56,16 @@ let labelsByName = new Map();
 let traces = { all: [], ram: [], jump: [] };
 let traceView = store.get("traceView", "all");
 let lineAddresses = new Map();
-let breakpoints = new Set(store.get("breakpoints", []));
+let breakpoints = new Set();
 let loadTimer = null;
 let lastFocusLine = null;
 let followSp = true;
 let viewAddress = 0;
 let editing = null; // {kind: "reg", name, text} or {kind: "ram", address, text}
+let programs = [];  // the viewer's own programs: {id, name, source, breakpoints}
+let exampleNames = [];
+let current = { kind: "example", name: DEFAULT_EXAMPLE };
+let exampleBreakpoints = store.get("exampleBreakpoints", {});
 
 const worker = new Worker("worker.js");
 const send = (type, args = {}) => worker.postMessage({ type, args });
@@ -66,7 +74,8 @@ worker.onmessage = ({ data }) => {
   if (data.type === "ready") {
     ready = true;
     el.python.textContent = `Python ${data.python} · in your browser`;
-    fillExamples(data.examples);
+    exampleNames = data.examples;
+    fillProgramList();
     el.ramSize.disabled = false;
     loadNow();
   } else if (data.type === "fatal") {
@@ -79,14 +88,18 @@ worker.onmessage = ({ data }) => {
 
 const decodeBase64 = (text) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 
+function showCommandError(message) {
+  commandError = message;
+  clearTimeout(commandErrorTimer);
+  commandErrorTimer = setTimeout(() => { commandError = null; renderStatus(); }, 6000);
+  renderStatus();
+}
+
 function applyResult(result) {
   running = result.running;
   if (result.error) {
-    commandError = result.error;
-    clearTimeout(commandErrorTimer);
-    commandErrorTimer = setTimeout(() => { commandError = null; renderStatus(); }, 6000);
     renderTransport();
-    renderStatus();
+    showCommandError(result.error);
     return;
   }
   if (result.clear_trace) traces = { all: [], ram: [], jump: [] };
@@ -118,27 +131,89 @@ function applyResult(result) {
     [...newLines].some(([line, address]) => lineAddresses.get(line) !== address);
   lineAddresses = newLines;
   breakpoints = new Set(state.breakpoints);
-  store.set("breakpoints", [...breakpoints]);
+  persistBreakpoints();
   if (addressesChanged) renderSource();
   render();
 }
 
-// ---------- Loading programs ----------
-function fillExamples(names) {
-  const current = store.get("example", DEFAULT_EXAMPLE);
-  el.program.innerHTML = names.map((n) => `<option value="${n}">${n}</option>`).join("") +
-    `<option value="">My program</option>`;
-  el.program.value = names.includes(current) ? current : "";
-  el.program.disabled = false;
+// ---------- Programs ----------
+// Examples come from the repository and can't be changed: typing in one saves the change as a copy
+// under My programs. The viewer's own programs are saved in this browser as they are edited.
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const currentProgram = () => (current.kind === "mine" ? programs.find((p) => p.id === current.id) || null : null);
+const saveProgramsNow = () => store.set("programs", programs);
+const displayName = () => (currentProgram() ? currentProgram().name : current.name);
+
+function uniqueName(base) {
+  const names = new Set(programs.map((p) => p.name));
+  if (!names.has(base)) return base;
+  for (let n = 2; ; n++) {
+    if (!names.has(`${base} ${n}`)) return `${base} ${n}`;
+  }
 }
 
-async function openExample(name) {
-  const response = await fetch(`../examples/${name}`);
-  if (!response.ok) return;
-  el.source.value = await response.text();
-  breakpoints = new Set();
-  store.set("example", name);
-  sourceChanged(true);
+function createProgram(name, source, programBreakpoints = []) {
+  const program = { id: newId(), name: uniqueName(name), source, breakpoints: programBreakpoints };
+  programs.unshift(program);
+  saveProgramsNow();
+  return program;
+}
+
+function fillProgramList() {
+  const mine = programs.map((p) => `<option value="mine:${p.id}">${escapeHtml(p.name)}</option>`).join("");
+  const examples = exampleNames.map((n) => `<option value="example:${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+  el.program.innerHTML = (mine ? `<optgroup label="My programs">${mine}</optgroup>` : "") +
+    (examples ? `<optgroup label="Examples">${examples}</optgroup>` : "");
+  el.program.value = current.kind === "mine" ? `mine:${current.id}` : `example:${current.name}`;
+  el.program.disabled = !el.program.options.length;
+  const program = currentProgram();
+  if (document.activeElement !== el.programName) el.programName.value = displayName();
+  el.programName.disabled = !program;
+  el.progDelete.disabled = !program;
+}
+
+async function openProgram(ref) {
+  editing = null;
+  if (ref.kind === "mine") {
+    const program = programs.find((p) => p.id === ref.id);
+    if (!program) return openProgram({ kind: "example", name: DEFAULT_EXAMPLE });
+    current = { kind: "mine", id: program.id };
+    el.source.value = program.source;
+    breakpoints = new Set(program.breakpoints || []);
+  } else {
+    let text;
+    try {
+      const response = await fetch(`../examples/${ref.name}`);
+      if (!response.ok) throw new Error(String(response.status));
+      text = await response.text();
+    } catch (e) {
+      showCommandError(`could not open the example ${ref.name}`);
+      return;
+    }
+    current = { kind: "example", name: ref.name };
+    el.source.value = text;
+    breakpoints = new Set(exampleBreakpoints[ref.name] || []);
+  }
+  store.set("current", current);
+  lineAddresses = new Map();
+  lastFocusLine = null;
+  el.source.scrollTop = 0;
+  if (document.activeElement === el.programName) el.programName.blur();
+  fillProgramList();
+  el.programName.value = displayName();
+  renderSource();
+  loadNow();
+}
+
+function persistBreakpoints() {
+  const program = currentProgram();
+  if (program) {
+    program.breakpoints = [...breakpoints];
+    saveProgramsNow();
+  } else if (current.kind === "example") {
+    exampleBreakpoints[current.name] = [...breakpoints];
+    store.set("exampleBreakpoints", exampleBreakpoints);
+  }
 }
 
 function loadNow() {
@@ -149,11 +224,31 @@ function loadNow() {
 }
 
 function sourceChanged(immediately) {
-  store.set("source", el.source.value);
+  let program = currentProgram();
+  if (!program) {
+    program = createProgram(`${current.name.replace(/\.asm$/i, "")} copy`, el.source.value, [...breakpoints]);
+    current = { kind: "mine", id: program.id };
+    store.set("current", current);
+    fillProgramList();
+  }
+  program.source = el.source.value;
+  saveProgramsNow();
   renderSource();
   clearTimeout(loadTimer);
   if (immediately) loadNow();
   else loadTimer = setTimeout(loadNow, 400);
+}
+
+function downloadProgram() {
+  const base = displayName().replace(/\.asm$/i, "").replace(/[\\/:*?"<>|]+/g, "-").trim() || "program";
+  const url = URL.createObjectURL(new Blob([el.source.value], { type: "text/plain" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${base}.asm`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // ---------- Editor ----------
@@ -239,7 +334,7 @@ function toggleBreakpoint(line) {
   const allowed = state && state.program ? lineAddresses.has(line) : lineText.replace(/;.*/, "").trim() !== "";
   if (!allowed) return;
   if (breakpoints.has(line)) breakpoints.delete(line); else breakpoints.add(line);
-  store.set("breakpoints", [...breakpoints]);
+  persistBreakpoints();
   renderMarks();
   renderRom();
   if (ready) send("set_breakpoints", { lines: [...breakpoints] });
@@ -321,7 +416,7 @@ function renderRegisters() {
 
 // ---------- Data path ----------
 // A textbook-style datapath: register boxes with write enables, an A bus and a MUX-selected B bus into
-// the ALU, function select lines, flags, and a result bus that feeds registers, RAM and the PC.
+// the ALU, function select, flags, and a result bus that feeds registers, RAM and the PC.
 const ALU = {};
 for (const [name, op] of [["add", "ADD"], ["sub", "SUB"], ["mul", "MUL"], ["div", "DIV"]]) {
   ALU[name] = { op, form: "rr" }; ALU[name + "i"] = { op, form: "ri" }; ALU[name + "a"] = { op, form: "ra" };
@@ -345,7 +440,7 @@ function datapathModel(next, preview, registers) {
   const immediate = (value, width = 2) => ({ kind: "IMM", value, width });
   const memory = (address, width = 2, value = ram[address] ?? 0) => ({ kind: "RAM", address, value, width });
   const targetOperand = ops.find(([kind]) => kind === "a");
-  const model = { a: null, b: null, op: null, flagsRead: false, jumpTest: null };
+  const model = { a: null, b: null, op: null, flagsRead: false, jumpTest: false };
 
   if (ALU[m]) {
     const { op, form } = ALU[m];
@@ -393,7 +488,7 @@ function drawDatapath(model, next, registers) {
   const add = (markup) => svg.push(markup);
   const cls = (base, live) => `${base}${live ? " live" : ""}`;
   const arrow = (live) => `marker-end="url(#${live ? "dp-arrow-live" : "dp-arrow"})"`;
-  // Buses are plain lines; branches and signals end in a fixed-size arrowhead.
+  // Buses are plain lines; branches and signals end in a fixed-size arrowhead at a box edge.
   const wire = (d, live, extra = "") => add(`<path class="${cls("wire" + extra, live)}" d="${d}" ${extra.includes("bus") ? "" : arrow(live)}/>`);
   const text = (x, y, className, content, anchor = "start") => add(`<text class="${className}" x="${x}" y="${y}" text-anchor="${anchor}">${escapeHtml(content)}</text>`);
   const value = (v, width) => hex(v, width);
@@ -404,23 +499,29 @@ function drawDatapath(model, next, registers) {
     <marker id="dp-arrow-live" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path class="arrow live" d="M0 0 L10 5 L0 10 z"/></marker>
   </defs>`);
 
-  // --- Fetch and decode ---
-  add(`<rect class="${idle ? "box" : "box act"}" x="20" y="14" width="140" height="44" rx="2"/>`);
-  text(30, 32, idle ? "bl dim" : "bl", "ROM");
-  text(30, 50, "bv", next ? `${value(next.address, 4)}: ${next.bytes.map((b) => hex(b, 2)).join(" ")}` : "");
-  wire("M160 36 H378", !idle);
-  add(`<rect class="${idle ? "box" : "box act"}" x="380" y="14" width="150" height="44" rx="2"/>`);
-  text(390, 32, idle ? "bl dim" : "bl", "DECODER");
-  text(390, 50, "bv", next ? `${hex(next.bytes[0], 2)} → ${next.mnemonic}` : "");
-  wire("M392 58 V72 H24", !idle, " ctl");
-  text(150, 68, "en", "control lines");
+  const pcLoad = !!(model && model.pcLoad !== null);
+  const ramWrite = !!(model && model.ramWrites.length);
+
+  // --- Fetch and decode: PC addresses ROM, ROM feeds the decoder ---
+  add(`<rect class="${pcLoad ? "box act" : "box"}" x="40" y="16" width="124" height="44" rx="2"/>`);
+  text(154, 34, pcLoad ? "bl" : "bl dim", "PC", "end");
+  text(48, 34, "bv", value(next ? next.address : registers ? registers[PC] : 0, 4));
+  text(48, 52, cls("en", pcLoad), pcLoad ? `load ← ${value(model.pcLoad, 4)}` : "load");
+  wire("M164 38 H226", !idle);
+  add(`<rect class="${idle ? "box" : "box act"}" x="228" y="16" width="150" height="44" rx="2"/>`);
+  text(238, 34, idle ? "bl dim" : "bl", "ROM");
+  text(238, 52, "bv", next ? `${value(next.address, 4)}: ${next.bytes.map((b) => hex(b, 2)).join(" ")}` : "");
+  wire("M378 38 H438", !idle);
+  add(`<rect class="${idle ? "box" : "box act"}" x="440" y="16" width="150" height="44" rx="2"/>`);
+  text(450, 34, idle ? "bl dim" : "bl", "DECODER");
+  text(450, 52, "bv", next ? `${hex(next.bytes[0], 2)} → ${next.mnemonic}` : "");
 
   // --- Register column: the registers this instruction reads or writes ---
   const slots = [];
-  const slotFor = (name, width, current) => {
+  const slotFor = (name, width, currentValue) => {
     let slot = slots.find((s) => s.name === name);
     if (!slot && slots.length < 4) {
-      slot = { name, width, value: current, write: null };
+      slot = { name, width, value: currentValue, write: null };
       slots.push(slot);
     }
     return slot;
@@ -434,15 +535,17 @@ function drawDatapath(model, next, registers) {
     }
   }
   if (!slots.length) slots.push({ name: "A", width: 2, value: registers ? registers[0] : 0, write: null });
-  const slotY = (i) => 96 + i * 52;
+  const slotY = (i) => 100 + i * 52;
   const slotMid = (i) => slotY(i) + 22;
-  const slotIndex = (name) => slots.findIndex((s) => s.name === name);
+  const slotIndex = (name) => Math.max(slots.findIndex((s) => s.name === name), 0);
 
+  // Left rail: the result bus rising to register write inputs and the PC load input
   const anyWrite = slots.some((s) => s.write !== null);
-  wire(`M14 404 V${slotMid(0)}`, anyWrite, " bus");
+  wire("M14 406 V38", anyWrite || pcLoad, " bus");
+  wire("M14 38 H38", pcLoad);
   slots.forEach((slot, i) => {
     const written = slot.write !== null;
-    const involved = written || (model && ((model.a && model.a.name === slot.name) || (model.b && model.b.name === slot.name)));
+    const involved = written || !!(model && ((model.a && model.a.name === slot.name) || (model.b && model.b.name === slot.name)));
     wire(`M14 ${slotMid(i)} H38`, written);
     add(`<rect class="${written ? "box act" : involved ? "box read" : "box"}" x="40" y="${slotY(i)}" width="124" height="44" rx="2"/>`);
     text(154, slotY(i) + 18, involved ? "bl" : "bl dim", slot.name, "end");
@@ -453,92 +556,83 @@ function drawDatapath(model, next, registers) {
   // --- A bus ---
   const aLive = !!(model && model.a);
   const aSlot = model && model.a && model.a.kind === "REG" ? slotIndex(model.a.name) : 0;
-  wire(`M164 ${slotMid(Math.max(aSlot, 0))} H290 V286`, aLive);
-  text(298, 262, cls("lbl", aLive), "A Bus");
-  if (aLive) text(298, 278, "lv", `${model.a.name}=${value(model.a.value, model.a.width)}`);
+  wire(`M164 ${slotMid(aSlot)} H330 V286`, aLive);
+  text(338, 262, cls("lbl", aLive), "A Bus");
+  if (aLive) text(338, 278, "lv", `${model.a.name}=${value(model.a.value, model.a.width)}`);
 
-  // --- MUX selecting the B bus ---
+  // --- MUX selecting the B bus: from a register, the decoder (immediate) or RAM ---
   const bKind = model && model.b ? model.b.kind : null;
-  if (bKind === "REG") {
-    const i = Math.max(slotIndex(model.b.name), 0);
-    wire(`M164 ${slotMid(i)} H206 V150 H432 V186`, true);
-  } else {
-    wire("M432 150 V186", false);
-  }
-  wire("M458 58 V186", bKind === "IMM");
-  add(`<rect class="${bKind === "RAM" ? "box act" : model && model.ramWrites.length ? "box act" : "box"}" x="530" y="90" width="104" height="50" rx="2"/>`);
-  text(540, 108, bKind === "RAM" || (model && model.ramWrites.length) ? "bl" : "bl dim", "RAM");
-  if (model && model.ramWrites.length) {
+  const regSlot = bKind === "REG" ? slotIndex(model.b.name) : 0;
+  wire(`M164 ${slotMid(regSlot)} H206 V156 H488 V186`, bKind === "REG");
+  wire("M515 60 V186", bKind === "IMM");
+
+  const ramActive = bKind === "RAM" || ramWrite;
+  add(`<rect class="${ramActive ? "box act" : "box"}" x="660" y="96" width="124" height="54" rx="2"/>`);
+  text(670, 114, ramActive ? "bl" : "bl dim", "RAM");
+  if (ramWrite) {
     const [[address, low], second] = model.ramWrites;
     // call pushes a 16-bit return address as two bytes, low byte first in memory
     const word = second && second[0] === address + 1;
-    text(540, 124, "bv hot", `[${value(address, 4)}] ← ${word ? value((second[1] << 8) | low, 4) : value(low, 2)}`);
+    text(670, 130, "bv hot", `[${value(address, 4)}] ← ${word ? value((second[1] << 8) | low, 4) : value(low, 2)}`);
   } else if (bKind === "RAM") {
-    text(540, 124, "bv", `[${value(model.b.address, 4)}] = ${value(model.b.value, model.b.width)}`);
+    text(670, 130, "bv", `[${value(model.b.address, 4)}] = ${value(model.b.value, model.b.width)}`);
   }
-  text(540, 136, cls("en", model && model.ramWrites.length), "write");
-  wire("M530 115 H484 V186", bKind === "RAM");
+  text(670, 144, cls("en", ramWrite), "write");
+  wire("M660 123 H542 V186", bKind === "RAM");
 
-  add(`<polygon class="${bKind ? "box act" : "box"}" points="420,190 496,190 482,236 434,236"/>`);
-  [["REG", 432], ["IMM", 458], ["RAM", 484]].forEach(([name, x]) => text(x, 202, cls("mux-in", bKind === name), name, "middle"));
-  text(458, 226, bKind ? "bl" : "bl dim", "MUX", "middle");
-  wire("M556 214 H490", !!bKind);
-  text(560, 212, cls("en", !!bKind), "B Bus select");
-  text(560, 226, "lv", bKind || "");
+  add(`<polygon class="${bKind ? "box act" : "box"}" points="470,190 560,190 544,236 486,236"/>`);
+  [["REG", 488], ["IMM", 515], ["RAM", 542]].forEach(([name, x]) => text(x, 202, cls("mux-in", bKind === name), name, "middle"));
+  text(515, 226, bKind ? "bl" : "bl dim", "MUX", "middle");
+  wire("M640 214 H556", !!bKind);
+  text(644, 212, cls("en", !!bKind), "B Bus select");
+  text(644, 226, "lv", bKind || "");
 
   const bLive = !!bKind;
-  wire("M458 236 V286", bLive);
-  text(466, 262, cls("lbl", bLive), "B Bus");
+  wire("M515 236 V286", bLive);
+  text(523, 262, cls("lbl", bLive), "B Bus");
   if (bLive) {
     const b = model.b;
     const shown = b.kind === "REG" ? `${b.name}=${value(b.value, b.width)}` : b.kind === "RAM" ? `[${value(b.address, 4)}]=${value(b.value, b.width)}` : value(b.value, b.width);
-    text(466, 278, "lv", shown);
+    text(523, 278, "lv", shown);
   }
 
   // --- ALU ---
   const aluLive = !!(model && model.op);
-  add(`<polygon class="${aluLive ? "box act" : "box"}" points="236,290 340,290 362,312 404,312 426,290 530,290 462,374 304,374"/>`);
-  text(383, 356, aluLive ? "bl big" : "bl big dim", "ALU", "middle");
-  wire("M600 320 H508", aluLive);
-  text(604, 324, cls("en", aluLive), "F");
-  text(596, 312, "lv", aluLive ? model.op : "", "end");
+  add(`<polygon class="${aluLive ? "box act" : "box"}" points="280,290 390,290 412,312 468,312 490,290 600,290 530,374 350,374"/>`);
+  text(440, 356, aluLive ? "bl big" : "bl big dim", "ALU", "middle");
+  wire("M680 320 H580", aluLive);
+  text(684, 318, cls("en", aluLive), "F  function select");
+  text(684, 332, "lv", aluLive ? model.op : "");
 
   // --- Flags ---
   const flagsLive = !!(model && model.flags !== null);
   const flagsRead = !!(model && model.flagsRead);
   const flagValue = flagsLive ? model.flags : registers ? registers[F] : 0;
-  wire("M486 358 H556", flagsLive);
-  add(`<rect class="${flagsLive ? "box act" : flagsRead ? "box read" : "box"}" x="558" y="340" width="76" height="40" rx="2"/>`);
+  wire("M546 358 H618", flagsLive);
+  add(`<rect class="${flagsLive ? "box act" : flagsRead ? "box read" : "box"}" x="620" y="340" width="84" height="40" rx="2"/>`);
   FLAGS.forEach(([letter, bit], i) => {
-    const x = 572 + i * 16;
+    const x = 638 + i * 16;
     text(x, 356, "lamp-letter", letter, "middle");
     add(`<circle class="lamp-dot${flagValue & bit ? " on" : ""}" cx="${x}" cy="368" r="4"/>`);
   });
+  text(712, 364, flagsLive ? "en live" : "en", "flags");
 
-  // --- Result bus: back to registers (left), RAM and PC (right) ---
-  const result = model && (model.destinations.length || model.ramWrites.length || model.pcLoad !== null || model.jumpTest);
-  wire("M383 374 V398", !!result);
-  wire("M14 404 H638", !!result, " bus");
+  // --- Result bus: up the left rail to registers and PC, up the right rail to RAM ---
+  const result = !!(model && (model.destinations.length || ramWrite || pcLoad || model.jumpTest));
+  wire("M440 374 V400", result);
+  wire("M14 406 H806", result, " bus");
   let resultText = "";
   if (model) {
-    if (model.jumpTest) resultText = model.pcLoad !== null ? `taken → ${value(model.pcLoad, 4)}` : "not taken";
-    else if (model.pcLoad !== null) resultText = value(model.pcLoad, 4);
+    if (model.jumpTest) resultText = pcLoad ? `taken → ${value(model.pcLoad, 4)}` : "not taken";
+    else if (pcLoad) resultText = value(model.pcLoad, 4);
     else if (model.destinations.length) resultText = value(model.destinations[0].value, model.destinations[0].width);
-    else if (model.ramWrites.length) resultText = value(model.ramWrites[0][1], 2);
+    else if (ramWrite) resultText = value(model.ramWrites[0][1], 2);
   }
-  text(392, 394, cls("lbl", !!result), "Result Bus");
-  text(392, 418, "lv", resultText);
+  text(450, 396, cls("lbl", result), "Result Bus");
+  text(450, 426, "lv", resultText);
 
-  const ramWrite = !!(model && model.ramWrites.length);
-  const pcLoad = !!(model && model.pcLoad !== null);
-  wire("M638 404 V115", ramWrite || pcLoad, " bus");
-  wire("M638 115 H636", ramWrite);
-  add(`<rect class="${pcLoad ? "box act" : "box"}" x="530" y="152" width="104" height="44" rx="2"/>`);
-  text(624, 170, pcLoad ? "bl" : "bl dim", "PC", "end");
-  const pcNow = next ? next.address : registers ? registers[PC] : 0;
-  text(540, 170, "bv", value(pcNow, 4));
-  text(540, 188, cls("en", pcLoad), pcLoad ? `load ← ${value(model.pcLoad, 4)}` : "load");
-  wire("M638 174 H636", pcLoad);
+  wire("M806 406 V123", ramWrite, " bus");
+  wire("M806 123 H786", ramWrite);
 
   return svg.join("");
 }
@@ -782,9 +876,9 @@ el.regs.addEventListener("click", (event) => {
     send("poke_register", { register: "F", value: state.registers[F] ^ Number(flag.dataset.flagBit) });
     return;
   }
-  const value = event.target.closest("[data-edit-reg]");
-  if (value) {
-    const name = value.dataset.editReg;
+  const valueCell = event.target.closest("[data-edit-reg]");
+  if (valueCell) {
+    const name = valueCell.dataset.editReg;
     const index = REGISTER_NAMES.indexOf(name);
     startEdit({ kind: "reg", name, text: hex(state.registers[index], index >= SP ? 4 : 2) });
   }
@@ -852,7 +946,8 @@ function renderStatus() {
     box.classList.add("good");
     const p = state.program;
     const bps = state.breakpoints.length;
-    box.innerHTML = `<span>Assembled <b>✓</b></span><span>${p.labels} ${p.labels === 1 ? "label" : "labels"} · ${bps} ${bps === 1 ? "breakpoint" : "breakpoints"}</span>`;
+    const saved = currentProgram() ? "Saved · " : "";
+    box.innerHTML = `<span>${saved}Assembled <b>✓</b></span><span>${p.labels} ${p.labels === 1 ? "label" : "labels"} · ${bps} ${bps === 1 ? "breakpoint" : "breakpoints"}</span>`;
   }
   el.editorMeta.textContent = state.program ? `${state.program.size} B` : "";
 }
@@ -889,10 +984,6 @@ el.back.addEventListener("click", doBack);
 el.run.addEventListener("click", doRunPause);
 el.reset.addEventListener("click", doReset);
 el.clock.addEventListener("input", clockChanged);
-el.program.addEventListener("change", () => {
-  if (el.program.value) openExample(el.program.value);
-  else store.set("example", "");
-});
 el.ramSize.addEventListener("change", () => {
   store.set("ramSize", el.ramSize.value);
   followSp = true;
@@ -900,10 +991,60 @@ el.ramSize.addEventListener("change", () => {
   loadNow();
 });
 
-el.source.addEventListener("input", () => {
-  if (el.program.value) { el.program.value = ""; store.set("example", ""); }
-  sourceChanged(false);
+// Programs
+el.program.addEventListener("change", () => {
+  const [kind, ...rest] = el.program.value.split(":");
+  const id = rest.join(":");
+  openProgram(kind === "mine" ? { kind: "mine", id } : { kind: "example", name: id });
 });
+el.progNew.addEventListener("click", async () => {
+  const program = createProgram("Untitled", NEW_PROGRAM);
+  await openProgram({ kind: "mine", id: program.id });
+  el.programName.focus();
+  el.programName.select();
+});
+el.progDuplicate.addEventListener("click", () => {
+  const program = createProgram(`${displayName().replace(/\.asm$/i, "")} copy`, el.source.value, [...breakpoints]);
+  openProgram({ kind: "mine", id: program.id });
+});
+el.progDelete.addEventListener("click", () => {
+  const program = currentProgram();
+  if (!program || !window.confirm(`Delete “${program.name}”? This can't be undone.`)) return;
+  programs = programs.filter((p) => p.id !== program.id);
+  saveProgramsNow();
+  openProgram(programs.length ? { kind: "mine", id: programs[0].id } : { kind: "example", name: DEFAULT_EXAMPLE });
+});
+el.progDownload.addEventListener("click", downloadProgram);
+el.progOpen.addEventListener("click", () => el.progFile.click());
+el.progFile.addEventListener("change", async () => {
+  const file = el.progFile.files[0];
+  el.progFile.value = "";
+  if (!file) return;
+  const program = createProgram(file.name.replace(/\.[^.]+$/, "") || "Opened program", await file.text());
+  openProgram({ kind: "mine", id: program.id });
+});
+el.programName.addEventListener("change", () => {
+  const program = currentProgram();
+  if (!program) return;
+  const name = el.programName.value.trim();
+  if (!name) {
+    el.programName.value = program.name;
+    return;
+  }
+  program.name = name;
+  saveProgramsNow();
+  fillProgramList();
+});
+el.programName.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") el.programName.blur();
+  else if (event.key === "Escape") {
+    el.programName.value = displayName();
+    el.programName.blur();
+  }
+});
+
+// Editor
+el.source.addEventListener("input", () => sourceChanged(false));
 el.source.addEventListener("scroll", syncScroll);
 el.gutter.addEventListener("click", (event) => {
   const row = event.target.closest(".g-row");
@@ -919,6 +1060,7 @@ el.source.addEventListener("keydown", (event) => {
   }
 });
 
+// Memory
 el.memAddress.addEventListener("keydown", (event) => { if (event.key === "Enter") goToAddress(); });
 el.memAddress.addEventListener("change", goToAddress);
 el.memFollow.addEventListener("click", () => {
@@ -955,6 +1097,7 @@ el.ramDump.addEventListener("dblclick", (event) => {
   startEdit({ kind: "ram", address, text: hex(ram[address], 2) });
 });
 
+// Trace
 el.traceBody.addEventListener("click", (event) => {
   const row = event.target.closest("[data-rewind]");
   if (row && !running) {
@@ -962,17 +1105,6 @@ el.traceBody.addEventListener("click", (event) => {
     send("rewind", { cycle: Number(row.dataset.rewind) });
   }
 });
-
-const memTabs = [["tab-ram", "pane-ram"], ["tab-rom", "pane-rom"]];
-for (const [tab] of memTabs) {
-  $(tab).addEventListener("click", () => {
-    for (const [t, pane] of memTabs) {
-      $(t).setAttribute("aria-selected", String(t === tab));
-      $(pane).hidden = t !== tab;
-    }
-  });
-}
-
 for (const button of document.querySelectorAll("[data-trace]")) {
   button.addEventListener("click", () => {
     traceView = button.dataset.trace;
@@ -980,6 +1112,30 @@ for (const button of document.querySelectorAll("[data-trace]")) {
     renderTrace();
   });
 }
+
+// Sub-tabs: RAM / ROM, and Data path / Trace
+function wireTabs(tabs, onChange) {
+  for (const [tab] of tabs) {
+    $(tab).addEventListener("click", () => {
+      for (const [t, pane] of tabs) {
+        $(t).setAttribute("aria-selected", String(t === tab));
+        $(pane).hidden = t !== tab;
+      }
+      if (onChange) onChange(tab);
+    });
+  }
+}
+wireTabs([["tab-ram", "pane-ram"], ["tab-rom", "pane-rom"]]);
+const execTabs = [["tab-path", "pane-path"], ["tab-trace", "pane-trace"]];
+function execTabChanged(tab) {
+  const trace = tab === "tab-trace";
+  el.traceFilters.hidden = !trace;
+  el.traceMeta.hidden = !trace;
+  el.pathMeta.hidden = trace;
+  store.set("execTab", tab);
+  if (trace) el.traceScroll.scrollTop = el.traceScroll.scrollHeight;
+}
+wireTabs(execTabs, execTabChanged);
 
 document.addEventListener("keydown", (event) => {
   if ($("p-console").hidden || event.target.tagName === "INPUT") return;
@@ -1019,21 +1175,24 @@ async function start() {
   if (!el.ramSize.value) el.ramSize.value = "1024";
   ram = new Uint8Array(Number(el.ramSize.value));
   clockChanged();
+  const execTab = store.get("execTab", "tab-path");
+  if (execTab === "tab-trace") $("tab-trace").click();
+  else execTabChanged("tab-path");
 
-  const saved = store.get("source", null);
-  const example = store.get("example", DEFAULT_EXAMPLE);
-  if (saved !== null && !example) {
-    el.source.value = saved;
-  } else {
-    try {
-      const response = await fetch(`../examples/${example || DEFAULT_EXAMPLE}`);
-      el.source.value = response.ok ? await response.text() : (saved || "");
-    } catch (e) {
-      el.source.value = saved || "";
+  programs = store.get("programs", null);
+  if (!Array.isArray(programs)) {
+    // Earlier versions kept one unnamed program; keep it as "My program".
+    programs = [];
+    const legacySource = store.get("source", null);
+    if (legacySource !== null && !store.get("example", DEFAULT_EXAMPLE)) {
+      const program = createProgram("My program", legacySource, store.get("breakpoints", []));
+      store.set("current", { kind: "mine", id: program.id });
     }
+    saveProgramsNow();
   }
-  renderSource();
+  const saved = store.get("current", null);
+  const valid = saved && ((saved.kind === "mine" && programs.some((p) => p.id === saved.id)) || (saved.kind === "example" && saved.name));
+  await openProgram(valid ? saved : { kind: "example", name: DEFAULT_EXAMPLE });
   render();
-  if (ready) loadNow();
 }
 start();
