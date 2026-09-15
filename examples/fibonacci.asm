@@ -12,4 +12,5 @@ next:   mov, E, B   ; keep F(n-1)
         add, A, B   ; A = F(n)
         mov, B, A
         mov, A, E
+        out, E      ; print the term just pushed
         ret

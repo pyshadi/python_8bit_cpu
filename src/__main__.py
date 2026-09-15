@@ -65,6 +65,16 @@ def describe_location(address, program, labels):
     return where if line is None else f"{where}, line {line}"
 
 
+def print_output(cpu, out):
+    """
+    Print what the program printed with out/outc, if anything.
+    """
+    text = "".join(cpu.output)
+    if text:
+        print("Output:", file=out)
+        print(text, end="" if text.endswith("\n") else "\n", file=out)
+
+
 def command_run(args, out, err):
     program, error = load_program(args.program)
     if error:
@@ -103,9 +113,11 @@ def command_run(args, out, err):
         else:
             message = f"{type(e).__name__} at {describe_location(address, program, labels)}: {e}"
         print(f"{args.program}: {message}", file=err)
+        print_output(cpu, out)
         print(format_registers(cpu.registers.registers), file=out)
         return EXIT_ERROR
 
+    print_output(cpu, out)
     pc = cpu.registers.read(Registers.PC)
     if result.reason == StopReason.HALTED:
         print(f"Halted after {cpu.cycles} cycles.", file=out)

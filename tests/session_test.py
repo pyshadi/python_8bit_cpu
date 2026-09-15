@@ -25,7 +25,7 @@ def test_load_reports_program_and_initial_state():
     result = Session().load(FIBONACCI)
     state = result["state"]
     assert result["clear_trace"] and state["status"] == "ready"
-    assert state["program"]["size"] == 34 and state["program"]["labels"] == 2
+    assert state["program"]["size"] == 36 and state["program"]["labels"] == 2
     assert [12, 0x18] in state["program"]["lines"]
     assert base64.b64decode(state["program"]["bytecode"]) == bytes(Assembler.assemble(FIBONACCI))
     assert state["program"]["label_list"] == [["loop", 0x09], ["next", 0x15]]
@@ -69,16 +69,17 @@ def test_run_stops_at_breakpoint_and_continues():
     assert state["next"]["text"] == "add, A, B"
 
     second = session.run(max_steps=1000)["state"]
-    assert (second["status"], second["cycles"]) == ("break", 15)
+    assert (second["status"], second["cycles"]) == ("break", 16)
 
 
 def test_run_to_halt():
     result = loaded().run(max_steps=1000)
     state = result["state"]
     assert result["stopped"] and state["status"] == "halted"
-    assert state["cycles"] == 94 and state["registers"][0] == 0x37
+    assert state["cycles"] == 104 and state["registers"][0] == 0x37
     assert state["next"] is None and state["current_line"] is None
-    assert len(result["trace"]) == 94
+    assert len(result["trace"]) == 104
+    assert state["output"]["text"] == "1\n1\n2\n3\n5\n8\n13\n21\n34\n55\n"
     assert result["trace"][-1]["effect"] == "halted"
     assert list(ram_of(state)[0x3F5:0x3FF]) == [55, 34, 21, 13, 8, 5, 3, 2, 1, 1]
 
@@ -232,14 +233,15 @@ def test_back_after_halt_and_after_a_runtime_error():
 
 def test_rewind_matches_a_fresh_run_to_the_same_cycle():
     session = loaded()
-    session.run(max_steps=60, quiet=True)
-    result = session.rewind(59)  # back to just before "call, next"
+    session.run(max_steps=70, quiet=True)
+    result = session.rewind(65)  # back to just before the seventh "call, next"
     state = result["state"]
-    assert result["rewound"] and state["cycles"] == 58 and state["next"]["text"] == "call, next"
-    assert max(entry["cycle"] for entry in result["trace"]) == 58
+    assert result["rewound"] and state["cycles"] == 64 and state["next"]["text"] == "call, next"
+    assert max(entry["cycle"] for entry in result["trace"]) == 64
+    assert state["output"]["text"] == "1\n1\n2\n3\n5\n8\n"  # the seventh term hasn't been printed yet
 
     fresh = loaded()
-    fresh.run(max_steps=58)
+    fresh.run(max_steps=64)
     assert state == fresh.state()
 
 
@@ -280,7 +282,7 @@ def test_preview_shows_the_next_instruction_without_running_it():
     assert state["next"]["operands"] == [["r", 0], ["r", 1]]
     assert state["preview"] == {"registers": {"A": 1, "F": 0}, "ram": [], "next_address": 0x1B,
                                 "jumped": False, "halted": False,
-                                "alu": [{"op": "add", "args": [0, 1], "result": 1}]}
+                                "alu": [{"op": "add", "args": [0, 1], "result": 1}], "output": ""}
     assert session.state() == state
 
     call_preview = loaded().run(max_steps=4)["state"]["preview"]  # next: call, next
@@ -307,6 +309,38 @@ def test_preview_records_exactly_which_alu_operations_run(source, steps, expecte
     assert preview["alu"] == expected_alu
     # recording is temporary: the CPU keeps its real ALU
     assert type(session.cpu.alu).__name__ == "ALU"
+
+
+def test_program_output_in_state_preview_and_trace_and_undone_by_back():
+    session = loaded("mvi, A, 42\nout, A\nmvi, B, 72\noutc, B\nhlt")
+    session.step()
+    assert session.state()["preview"]["output"] == "42\n"
+    session.step()
+    result = session.step()
+    assert result["state"]["output"] == {"text": "42\n", "truncated": False}
+    session.run()
+    assert session.state()["output"]["text"] == "42\nH"
+    trace_effects = [entry["effect"] for entry in session.reset()["trace"]]
+    assert trace_effects == [] and session.state()["output"]["text"] == ""
+
+    session.run()
+    session.back()  # undo hlt
+    session.back()  # undo outc
+    assert session.state()["output"]["text"] == "42\n"
+    session.rewind(2)  # before out, A
+    assert session.state()["output"]["text"] == ""
+
+
+def test_output_trace_effect():
+    trace = loaded("mvi, A, 7\nout, A\nhlt").run()["trace"]
+    assert trace[1]["effect"] == "output '7\\n'"
+
+
+def test_long_output_is_truncated_to_the_most_recent_text():
+    session = loaded("mvi, A, 65\nloop: outc, A\njmp, loop")
+    session.run(max_steps=2 * 25_000)
+    output = session.state()["output"]
+    assert output["truncated"] and len(output["text"]) == 20_000 and set(output["text"]) == {"A"}
 
 
 def test_dashboard_manifest_lists_every_module_and_example():

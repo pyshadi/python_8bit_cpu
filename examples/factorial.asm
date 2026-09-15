@@ -6,4 +6,5 @@ loop:   mul, D, B        ; A = D * B
         dec, B
         jnz, B, loop
         mov, A, D
+        out, A           ; print the result
         hlt

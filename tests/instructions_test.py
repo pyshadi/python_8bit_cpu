@@ -130,6 +130,11 @@ def test_pushi_and_pusha():
     assert reg(cpu, "SP") == 255
 
 
+def test_out_prints_decimal_lines_and_outc_prints_characters():
+    cpu = run_program("mvi, A, 42\nout, A\nmvi, B, 72\noutc, B\nmvi, B, 105\noutc, B\nout, SP\nhlt")
+    assert "".join(cpu.output) == "42\nHi255\n"
+
+
 def test_inv():
     cpu = run_program("mvi, B, 0b10100101\ninv, B\nhlt")
     assert reg(cpu, "B") == 0b01011010

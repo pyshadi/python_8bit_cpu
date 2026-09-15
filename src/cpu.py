@@ -15,6 +15,7 @@ class CPU:
         self.halted = False
         self.cycles = 0           # instructions executed since creation or the last reset
         self.breakpoints = set()  # addresses where run_until stops before executing
+        self.output = []          # text printed by out/outc, one string per printing instruction
 
         self.registers.write(Registers.SP, self.ram.size - 1)
 
@@ -66,6 +67,7 @@ class CPU:
             raise
 
         register_log, ram_log = {}, {}
+        output_count = len(self.output)
         self.registers.write_log, self.ram.write_log = register_log, ram_log
         try:
             self.run()
@@ -75,6 +77,7 @@ class CPU:
                 self.registers.registers[reg] = old
             for addr, old in ram_log.items():
                 self.ram.memory[addr] = old
+            del self.output[output_count:]
             raise
         finally:
             self.registers.write_log = self.ram.write_log = None
@@ -88,6 +91,7 @@ class CPU:
             ram_writes={addr: (old, self.ram.memory[addr]) for addr, old in sorted(ram_log.items())},
             next_address=self.registers.read(Registers.PC),
             halted=self.halted,
+            output="".join(self.output[output_count:]),
         )
 
     def undo(self, record):
@@ -101,6 +105,8 @@ class CPU:
         self.registers.registers[Registers.PC] = record.address
         self.halted = False
         self.cycles -= 1
+        if record.output:
+            self.output.pop()
 
     def run_until(self, max_steps=100_000, on_step=None):
         """
@@ -126,7 +132,8 @@ class CPU:
         """
         Capture registers, RAM, halt state and cycle count.
         """
-        return Snapshot(tuple(self.registers.registers), tuple(self.ram.memory), self.halted, self.cycles)
+        return Snapshot(tuple(self.registers.registers), tuple(self.ram.memory), self.halted, self.cycles,
+                        tuple(self.output))
 
     def restore(self, snapshot):
         """
@@ -138,6 +145,7 @@ class CPU:
         self.ram.memory[:] = snapshot.ram
         self.halted = snapshot.halted
         self.cycles = snapshot.cycles
+        self.output[:] = snapshot.output
 
     def reset(self):
         """
@@ -148,3 +156,4 @@ class CPU:
         self.registers.write(Registers.SP, self.ram.size - 1)
         self.halted = False
         self.cycles = 0
+        self.output.clear()

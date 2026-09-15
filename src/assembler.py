@@ -44,6 +44,7 @@ class Assembler:
         'push': (0x2d, 'r'), 'pushi': (0x2e, 'i'), 'pusha': (0x2f, 'a'), 'pop': (0x30, 'r'),
         'call': (0x31, 'a'), 'ret': (0x32, ''),
         'inv': (0x33, 'r'), 'sar': (0x34, 'r'),
+        'out': (0x35, 'r'), 'outc': (0x36, 'r'),
         'hlt': (0xff, ''),
     }
     opcode_map = {mnemonic: opcode for mnemonic, (opcode, _) in instructions.items()}

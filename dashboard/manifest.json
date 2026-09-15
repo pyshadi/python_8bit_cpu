@@ -18,6 +18,7 @@
     "factorial.asm",
     "fibonacci.asm",
     "gcd.asm",
+    "hello.asm",
     "multiply.asm",
     "swap.asm"
   ]

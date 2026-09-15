@@ -19,7 +19,7 @@ def line_for_cycle(output, cycle):
 def test_run_to_halt():
     status, out, err = run_cli("run", FIBONACCI)
     assert status == 0 and err == ""
-    assert "Halted after 94 cycles." in out
+    assert "Output:\n1\n1\n2\n3\n5\n8\n13\n21\n34\n55\nHalted after 104 cycles." in out
     assert "A 37  B 59  C 00" in out
     assert "PC 0015  SP 03F5  F 01 Z" in out
 
@@ -29,11 +29,12 @@ def test_trace_lines():
     assert status == 0
     lines = out.splitlines()
     assert lines[0].split() == ["cycle", "addr", "bytes", "instruction", "effect"]
-    assert line_for_cycle(out, 56) == "    56  000E  12 02        dec, C            C ← 04 · F ← 00"
-    assert line_for_cycle(out, 57) == "    57  0010  28 02 09 00  jnz, C, loop      taken → 0009 (loop)"
-    assert line_for_cycle(out, 59) == ("    59  000B  31 15 00     call, next        SP ← 03F6 · [03F6] ← 0E · "
+    assert line_for_cycle(out, 60) == "    60  0021  35 04        out, E            output '8\\n'"
+    assert line_for_cycle(out, 62) == "    62  000E  12 02        dec, C            C ← 04 · F ← 00"
+    assert line_for_cycle(out, 63) == "    63  0010  28 02 09 00  jnz, C, loop      taken → 0009 (loop)"
+    assert line_for_cycle(out, 65) == ("    65  000B  31 15 00     call, next        SP ← 03F6 · [03F6] ← 0E · "
                                        "[03F7] ← 00 · PC ← 0015 (next)")
-    assert line_for_cycle(out, 94).endswith("hlt               halted")
+    assert line_for_cycle(out, 104).endswith("hlt               halted")
 
 
 def test_break_at_label_and_address():
@@ -85,6 +86,20 @@ def test_missing_file():
     status, _, err = run_cli("run", "does/not/exist.asm")
     assert status == 1
     assert err.startswith("cannot read does/not/exist.asm")
+
+
+def test_run_prints_program_output():
+    hello = str(Path(__file__).parent.parent / "examples" / "hello.asm")
+    status, out, _ = run_cli("run", hello)
+    assert status == 0
+    assert "Output:\nHELLO\n1\n2\n3\nHalted after" in out
+
+
+def test_trace_shows_output_effect(tmp_path):
+    program = tmp_path / "print.asm"
+    program.write_text("mvi, A, 9\nout, A\nhlt\n")
+    _, out, _ = run_cli("run", str(program), "--trace")
+    assert line_for_cycle(out, 2).endswith("out, A            output '9\\n'")
 
 
 def test_disasm():
