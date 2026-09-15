@@ -208,6 +208,10 @@ Registers (<code>reg</code>, <code>D</code>, <code>S</code>) and immediate value
 
 Memory map: RAM from <code>0000</code> (up to <code>EFFF</code>), a 32×32 screen at <code>F000–F3FF</code> (one byte per pixel, colors 0–3), keys at <code>FF00</code> (1 up, 2 down, 4 left, 8 right, 16 fire) and a random byte at <code>FF01</code>. The dashboard shows the screen in its Display tab.
 
+### C programs
+
+The dashboard's editor has a C tab next to the Assembly tab. C written there is compiled in the browser by `src/compiler.py`; the assembly it produces appears in the Assembly tab and runs on the machine. The language is C with unsigned 8-bit values: global variables and arrays, local variables, functions with up to six parameters and recursion, `if`/`else`, `while`, `do`/`while`, `for`, the usual operators and `#define`. Built-ins cover output (`print`, `putchar`, `puts`), the screen (`plot`, `pixel`, `clear`), input (`keys`, `rand`), `frame`, `peek`/`poke` and `halt`. The dashboard Manual has the details, and `examples/fib.c`, `sieve.c` and `bounce.c` show it in use.
+
 ### Control Transfer Instructions
 | Mnemonic | Opcode | Operands | Description |
 | --- | --- | --- | --- |

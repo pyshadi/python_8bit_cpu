@@ -10,6 +10,7 @@ import re
 from collections import deque
 
 from src.assembler import Assembler, AssemblerError
+from src.compiler import CompileError, compile_c
 from src.cpu import CPU
 from src.disassembler import DisassemblerError, disassemble
 from src.memory import DEVICE_BASE, ROM, RAM, SCREEN_BASE, SCREEN_END
@@ -85,6 +86,7 @@ class Session:
             "poke_register": self.poke_register,
             "poke_ram": self.poke_ram,
             "set_keys": self.set_keys,
+            "compile": self.compile,
             "state": self._result,
         }
         if name not in handlers:
@@ -119,6 +121,18 @@ class Session:
         self.status, self.error = "ready", None
         self._apply_breakpoints(breakpoints)
         return self._result(clear_trace=True)
+
+    def compile(self, source, ram_size=None):
+        """
+        Compile C to assembly without touching the machine. Returns {"compiled": {"assembly", "lines"}, "compile_error"},
+        where lines pairs each assembly instruction line with its C line.
+        """
+        try:
+            compiled = compile_c(source, self.ram_size if ram_size is None else self._check_ram_size(ram_size))
+        except CompileError as e:
+            return {"compiled": None, "compile_error": {"line": e.line, "message": e.message}}
+        return {"compiled": {"assembly": compiled.assembly, "lines": sorted(compiled.line_map.items())},
+                "compile_error": None}
 
     def set_breakpoints(self, lines):
         self._apply_breakpoints(lines)

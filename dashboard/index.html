@@ -151,6 +151,10 @@
   .nm { color: var(--verdigris); }
   .lb { color: var(--ink); font-weight: 600; }
   .cm { color: var(--ink-3); }
+  .st { color: var(--verdigris); }
+  .pp { color: var(--brass); }
+  .lang-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 5px 12px; border-bottom: 1px solid var(--line-soft); }
+  .sync-note { margin-inline-start: auto; font-size: 12px; color: var(--brass); }
   #editorStatus { margin: 0 12px 12px; padding: 8px 10px; min-height: 38px; border: 1px solid var(--line-soft); border-radius: 2px; display: flex; justify-content: space-between; gap: 10px; font-family: var(--f-mono); font-stretch: 87.5%; font-size: 12px; color: var(--ink-2); }
   #editorStatus.good b { color: var(--verdigris); font-weight: 500; }
   #editorStatus.bad { color: var(--signal); border-color: var(--signal); background: var(--signal-soft); }
@@ -429,7 +433,15 @@
             <button class="tool" type="button" id="prog-download">Download</button>
             <button class="tool danger" type="button" id="prog-delete">Delete</button>
           </div>
-          <input id="prog-file" type="file" accept=".asm,.txt,text/plain" hidden>
+          <input id="prog-file" type="file" accept=".asm,.c,.txt,text/plain" hidden>
+        </div>
+        <div class="lang-bar">
+          <div class="subtabs" role="tablist" aria-label="Language">
+            <button class="subtab" role="tab" type="button" id="tab-c" aria-controls="source" aria-selected="false"><span class="engrave">C</span></button>
+            <button class="subtab" role="tab" type="button" id="tab-asm" aria-controls="source" aria-selected="true"><span class="engrave">Assembly</span></button>
+          </div>
+          <span class="sync-note" id="syncNote" hidden>Assembly doesn't match the C</span>
+          <button class="tool" type="button" id="recompile" hidden>Recompile from C</button>
         </div>
         <div class="editor-body">
           <div class="gutter-clip"><div id="gutter"></div></div>
@@ -532,6 +544,7 @@
         <a href="#m-start">Getting started</a>
         <a href="#m-programs">Programs</a>
         <a href="#m-examples">Examples</a>
+        <a href="#m-c">C programs</a>
         <a href="#m-hardware">Screen and keys</a>
         <a href="#m-controls">Controls</a>
         <a href="#m-colors">Lamps and colors</a>
@@ -576,6 +589,45 @@
           <h2>Examples</h2>
           <p class="muted">Example programs from the repository. Open one to step through it; typing in it saves your own copy.</p>
           <div class="gallery" id="examplesGallery"></div>
+        </section>
+
+        <section id="m-c">
+          <h2>C programs</h2>
+          <p class="muted">Every program has a C tab and an Assembly tab above the editor. Write C in the C tab and the Assembly tab follows it: each change is compiled in your browser and loaded into the machine. Stepping highlights the C line and, in the Assembly tab, the exact instruction. Breakpoints work in both tabs. New creates a C program while the C tab is open.</p>
+          <p class="muted">You can still change the assembly by hand. From then on it no longer follows the C, and the editor shows “Assembly doesn't match the C”. Recompile from C replaces it with the compiled C again.</p>
+          <div class="tablewrap">
+            <table class="doc">
+              <thead><tr><th>Language</th><th>What you can use</th></tr></thead>
+              <tbody>
+                <tr><td>Values</td><td class="soft"><code>int</code>, <code>char</code> and <code>byte</code> are all unsigned bytes, 0 to 255. Arithmetic wraps around: <code>250 + 10</code> is 4 and <code>-1</code> is 255.</td></tr>
+                <tr><td>Variables</td><td class="soft">Globals with initial values (<code>int score = 0;</code>), global arrays (<code>int grid[64];</code>, <code>int primes[] = {2, 3, 5};</code>, <code>char name[] = "HI";</code>), and local variables and parameters inside functions. Arrays are global and hold up to 256 elements.</td></tr>
+                <tr><td>Statements</td><td class="soft"><code>if</code>/<code>else</code>, <code>while</code>, <code>do</code>/<code>while</code>, <code>for</code>, <code>break</code>, <code>continue</code>, <code>return</code>, and blocks with their own variables.</td></tr>
+                <tr><td>Operators</td><td class="soft"><code>+ - * / %</code>, <code>&amp; | ^ ~ &lt;&lt; &gt;&gt;</code>, <code>== != &lt; &gt; &lt;= &gt;=</code>, <code>&amp;&amp; || !</code>, <code>?:</code>, <code>=</code> with <code>+=</code> and the other compound assignments, <code>++</code> and <code>--</code>.</td></tr>
+                <tr><td>Functions</td><td class="soft">Up to 6 parameters, recursion and <code>void</code> functions. A prototype such as <code>int f(int n);</code> lets functions call each other in any order. Every program needs <code>int main()</code>; returning from it halts the machine.</td></tr>
+                <tr><td><code>#define</code></td><td class="soft"><code>#define NAME value</code> for constants.</td></tr>
+                <tr><td>Not yet</td><td class="soft">Pointers, structs, local arrays, <code>switch</code>, and signed or 16-bit types.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="tablewrap">
+            <table class="doc">
+              <thead><tr><th>Built-in</th><th>What it does</th></tr></thead>
+              <tbody>
+                <tr><td><code>print(n)</code></td><td class="soft">Prints a number and a new line.</td></tr>
+                <tr><td><code>putchar(c)</code></td><td class="soft">Prints one character: <code>putchar('A')</code>, <code>putchar(10)</code> for a new line.</td></tr>
+                <tr><td><code>puts("text")</code></td><td class="soft">Prints the text and a new line.</td></tr>
+                <tr><td><code>plot(x, y, color)</code></td><td class="soft">Sets a pixel on the Display. <code>x</code> and <code>y</code> wrap at 32. Colors: <code>BLACK</code>, <code>RED</code>, <code>BRASS</code>, <code>WHITE</code>.</td></tr>
+                <tr><td><code>pixel(x, y)</code></td><td class="soft">The color of a pixel.</td></tr>
+                <tr><td><code>clear(color)</code></td><td class="soft">Fills the Display with one color.</td></tr>
+                <tr><td><code>keys()</code></td><td class="soft">The keys held. Test one with <code>KEY_UP</code>, <code>KEY_DOWN</code>, <code>KEY_LEFT</code>, <code>KEY_RIGHT</code> or <code>KEY_FIRE</code>: <code>if (keys() &amp; KEY_LEFT) x--;</code></td></tr>
+                <tr><td><code>rand()</code></td><td class="soft">A random byte.</td></tr>
+                <tr><td><code>frame()</code></td><td class="soft">Ends a frame. At max clock speed the machine waits here for the next 1/30 second.</td></tr>
+                <tr><td><code>peek(address)</code> · <code>poke(address, value)</code></td><td class="soft">Read or write any byte of memory, such as <code>poke(0xF000 + i, RED)</code>.</td></tr>
+                <tr><td><code>halt()</code></td><td class="soft">Stops the machine.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="muted">How it runs: each variable has a fixed RAM address, listed at the top of the generated assembly. Expressions are worked out in register A, arguments arrive in C, D, E, G, H and I, and a function saves its variables on the stack while it runs, which is what lets it call itself.</p>
         </section>
 
         <section id="m-hardware">

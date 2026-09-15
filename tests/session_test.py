@@ -347,4 +347,4 @@ def test_long_output_is_truncated_to_the_most_recent_text():
 def test_dashboard_manifest_lists_every_module_and_example():
     manifest = json.loads((ROOT / "dashboard" / "manifest.json").read_text())
     assert manifest["python"] == sorted(p.name for p in (ROOT / "src").glob("*.py") if p.name != "__main__.py")
-    assert manifest["examples"] == sorted(p.name for p in (ROOT / "examples").glob("*.asm"))
+    assert manifest["examples"] == sorted(p.name for pattern in ("*.asm", "*.c") for p in (ROOT / "examples").glob(pattern))

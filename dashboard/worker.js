@@ -1,7 +1,7 @@
 // Runs the Python emulator (src/) in Pyodide, off the page's main thread.
-// Messages in:  {type: "load" | "step" | "reset" | "set_breakpoints" | "run" | "pause" | "rate", args}
+// Messages in:  {type: "load" | "step" | "reset" | "set_breakpoints" | "run" | "pause" | "rate" | "compile" | ..., args}
 // Messages out: {type: "ready", python, examples} | {type: "result", running, state, trace, stopped, clear_trace}
-//               | {type: "fatal", message}
+//               | {type: "compiled", seq, compiled, compile_error} | {type: "fatal", message}
 
 let session = null;
 let running = false;
@@ -63,6 +63,9 @@ function handle({ type, args = {} }) {
     case "pause":
       stop();
       send("state");
+      return;
+    case "compile": // C to assembly; the machine is untouched and keeps running
+      post({ type: "compiled", seq: args.seq, ...call({ command: "compile", source: args.source, ram_size: args.ram_size }) });
       return;
     case "set_breakpoints":
     case "set_keys":
