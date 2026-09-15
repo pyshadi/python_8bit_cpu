@@ -212,14 +212,26 @@ jnz, A, loop    ; repeat until A is 0
 hlt
 </pre>
 
+## Setup
+
+Create a virtual environment in the repository folder (Python 3.9 or newer) and install the test dependencies into it:
+
+<pre>
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+</pre>
+
+On Windows, activate it with <code>.venv\Scripts\activate</code> instead. Run <code>source .venv/bin/activate</code> again in each new terminal; <code>deactivate</code> leaves it. The commands below assume it is active. <code>.venv/</code> is ignored by git.
+
 ## Testing
 
 ### main.py
-From parent directory run main as module: <code>python3 -m main</code> or run it as a script: <code>python3 main.py</code>
+From the repository folder run main as a module: <code>python -m main</code> or as a script: <code>python main.py</code>
 The test_cpu function assembles a small program that stores a value in RAM, loads it back into another register, adds to it, and halts. After the program finishes running, the function prints out the values of the CPU's registers.<br>
 
 ### Unit tests
-Install the test dependencies with <code>python3 -m pip install -r requirements-dev.txt</code>, then from the parent directory run the test suite: <code>python3 -m pytest</code><br>
+With the virtual environment active (see Setup), run the test suite from the repository folder: <code>python -m pytest</code><br>
 CI runs the tests and <code>main.py</code> on Python 3.9–3.13 for every pull request and every push to <code>main</code>.
 
 | File | Covers |
