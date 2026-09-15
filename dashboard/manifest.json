@@ -15,7 +15,10 @@
   "examples": [
     "bitcount.asm",
     "countdown.asm",
+    "factorial.asm",
     "fibonacci.asm",
-    "multiply.asm"
+    "gcd.asm",
+    "multiply.asm",
+    "swap.asm"
   ]
 }

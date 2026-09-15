@@ -16,7 +16,9 @@ const post = (message) => self.postMessage(message);
 const call = (command) => JSON.parse(session.handle(JSON.stringify(command)));
 
 async function fetchText(url) {
-  const response = await fetch(url);
+  // Revalidate every time so the manifest and Python files always match the deployed dashboard,
+  // even while the browser still has older copies cached (unchanged files come back as a cheap 304).
+  const response = await fetch(url, { cache: "no-cache" });
   if (!response.ok) throw new Error(`could not load ${url} (${response.status})`);
   return response.text();
 }

@@ -27,6 +27,7 @@ const el = {
   pathMeta: $("pathMeta"), datapath: $("datapath"),
   programName: $("programName"), progNew: $("prog-new"), progDuplicate: $("prog-duplicate"),
   progOpen: $("prog-open"), progDownload: $("prog-download"), progDelete: $("prog-delete"), progFile: $("prog-file"),
+  progShare: $("prog-share"), themeToggle: $("themeToggle"), examplesGallery: $("examplesGallery"),
 };
 
 // ---------- Per-viewer storage (best effort) ----------
@@ -47,6 +48,7 @@ let ready = false;
 let fatal = null;
 let commandError = null;
 let commandErrorTimer = null;
+let commandNotice = null;
 let running = false;
 let state = null;
 let ram = new Uint8Array(1024);
@@ -76,6 +78,7 @@ worker.onmessage = ({ data }) => {
     el.python.textContent = `Python ${data.python} · in your browser`;
     exampleNames = data.examples;
     fillProgramList();
+    buildExamplesGallery(data.examples);
     el.ramSize.disabled = false;
     loadNow();
   } else if (data.type === "fatal") {
@@ -89,9 +92,18 @@ worker.onmessage = ({ data }) => {
 const decodeBase64 = (text) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 
 function showCommandError(message) {
+  commandNotice = null;
   commandError = message;
   clearTimeout(commandErrorTimer);
   commandErrorTimer = setTimeout(() => { commandError = null; renderStatus(); }, 6000);
+  renderStatus();
+}
+
+function showNotice(message) {
+  commandError = null;
+  commandNotice = message;
+  clearTimeout(commandErrorTimer);
+  commandErrorTimer = setTimeout(() => { commandNotice = null; renderStatus(); }, 6000);
   renderStatus();
 }
 
@@ -251,6 +263,63 @@ function downloadProgram() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// Share links carry the program itself in the URL fragment, which browsers never send to a server.
+function encodeShare(program) {
+  let binary = "";
+  for (const byte of new TextEncoder().encode(JSON.stringify(program))) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function decodeShare(text) {
+  const base64 = text.replace(/-/g, "+").replace(/_/g, "/");
+  const binary = atob(base64 + "===".slice((base64.length + 3) % 4));
+  const data = JSON.parse(new TextDecoder().decode(Uint8Array.from(binary, (c) => c.charCodeAt(0))));
+  if (!data || typeof data.source !== "string") throw new Error("no program in link");
+  return { name: String(data.name || "Shared program").slice(0, 50), source: data.source };
+}
+
+async function shareProgram() {
+  const link = `${location.origin}${location.pathname}#program=${encodeShare({ name: displayName().replace(/\.asm$/i, ""), source: el.source.value })}`;
+  try {
+    await navigator.clipboard.writeText(link);
+    showNotice("Link copied. Whoever opens it gets their own copy of this program.");
+  } catch (e) {
+    window.prompt("Copy this link to share the program:", link);
+  }
+}
+
+async function openSharedLink() {
+  if (!location.hash.startsWith("#program=")) return false;
+  const encoded = location.hash.slice("#program=".length);
+  history.replaceState(null, "", location.pathname + "#console");
+  showPage("console");
+  try {
+    const shared = decodeShare(encoded);
+    const existing = programs.find((p) => p.source === shared.source);
+    const program = existing || createProgram(`${shared.name} (shared)`, shared.source);
+    await openProgram({ kind: "mine", id: program.id });
+    showNotice(existing ? `You already have this program as “${program.name}”.` : `Added “${program.name}” to My programs.`);
+    return true;
+  } catch (e) {
+    showCommandError("this share link is incomplete or damaged, so the program couldn't be opened");
+    return false;
+  }
+}
+
+async function buildExamplesGallery(names) {
+  const cards = await Promise.all(names.map(async (name) => {
+    let description = "";
+    try {
+      const firstLine = (await (await fetch(`../examples/${name}`)).text()).split("\n")[0];
+      if (firstLine.startsWith(";")) description = firstLine.slice(1).replace(/^[^:]*:\s*/, "").trim();
+    } catch (e) { /* show the card without a description */ }
+    description = description ? description.charAt(0).toUpperCase() + description.slice(1) + "." : "";
+    return `<div class="card"><h3>${escapeHtml(name)}</h3><p>${escapeHtml(description)}</p>` +
+      `<button class="tool" type="button" data-open-example="${escapeHtml(name)}">Open in console</button></div>`;
+  }));
+  el.examplesGallery.innerHTML = cards.join("");
+}
+
 // ---------- Editor ----------
 const escapeHtml = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -393,7 +462,8 @@ function renderRegisters() {
   const editable = canEdit();
   const valueHtml = (name, value, width) => {
     if (editing && editing.kind === "reg" && editing.name === name) return editInput(`New value for ${name}`, width);
-    return `<span class="hex${editable ? " editable" : ""}" data-edit-reg="${name}"${editable ? ' title="Edit value"' : ""}>${hex(value, width)}</span>`;
+    const control = editable ? ` role="button" tabindex="0" title="Edit value" aria-label="${name} is ${hex(value, width)}, edit"` : "";
+    return `<span class="hex${editable ? " editable" : ""}" data-edit-reg="${name}"${control}>${hex(value, width)}</span>`;
   };
   const cards = REGISTER_NAMES.map((name, i) => {
     if (name === "F") return null;
@@ -409,7 +479,7 @@ function renderRegisters() {
   cards.push(`<div class="reg${written.has("F") ? " changed" : ""}${flags === 0 ? " zero" : ""}">` +
     `<div class="top"><span class="name">F</span><span class="dec">${flags}</span></div>` +
     `${valueHtml("F", flags, 2)}` +
-    `<div class="flags">${FLAGS.map(([f, bit]) => `<span class="flag${flags & bit ? " on" : ""}${editable ? " editable" : ""}" data-flag-bit="${bit}"${editable ? ` title="Flip ${f}"` : ""}><i></i><b>${f}</b></span>`).join("")}</div></div>`);
+    `<div class="flags">${FLAGS.map(([f, bit]) => `<span class="flag${flags & bit ? " on" : ""}${editable ? " editable" : ""}" data-flag-bit="${bit}"${editable ? ` role="button" tabindex="0" title="Flip ${f}" aria-label="${f} flag ${flags & bit ? "set" : "clear"}, flip"` : ""}><i></i><b>${f}</b></span>`).join("")}</div></div>`);
   el.regs.innerHTML = cards.join("");
   if (editing && editing.kind === "reg") focusEditInput();
 }
@@ -680,6 +750,14 @@ function renderDataPath() {
   const active = !!(state && state.next && state.preview && !state.preview.error && !running);
   const model = active ? datapathModel(state.next, state.preview, state.registers) : null;
   el.datapath.innerHTML = drawDatapath(model, active ? state.next : null, state ? state.registers : null);
+  let summary = "Data path: no instruction to show";
+  if (model) {
+    const route = model.op ? `the ALU performs ${model.op}` : model.test ? `the decoder tests ${model.test.condition.replace(" ?", "")}, ${model.test.taken ? "taken" : "not taken"}` : model.transfer ? "the decoder transfers the value directly" : "no data moves";
+    const writes = [...model.destinations.map((d) => `${d.name} ← ${hex(d.value, d.width)}`), ...model.ramWrites.map(([a, v]) => `RAM ${hex(a, 4)} ← ${hex(v, 2)}`)];
+    if (model.pcLoad !== null) writes.push(`PC ← ${hex(model.pcLoad, 4)}`);
+    summary = `Data path for ${state.next.text}: ${route}${writes.length ? "; writes " + writes.join(", ") : ""}`;
+  }
+  el.datapath.setAttribute("aria-label", summary);
 
   if (!state || !state.next || running) el.pathMeta.textContent = running ? "running" : "";
   else if (state.preview && state.preview.error) el.pathMeta.textContent = `next stops: ${state.preview.error.split(":")[0]}`;
@@ -939,7 +1017,9 @@ function renderTrace() {
   const rewindFrom = state && state.history && !running ? state.history.rewind_from : null;
   const rows = entries.map((e) => {
     const canRewind = rewindFrom !== null && e.cycle >= rewindFrom && e.cycle <= state.cycles;
-    const attrs = canRewind ? ` class="rw" data-rewind="${e.cycle}" title="Rewind to before this instruction"` : "";
+    const attrs = canRewind
+      ? ` class="rw" data-rewind="${e.cycle}" tabindex="0" role="button" title="Rewind to before this instruction" aria-label="Rewind to before cycle ${e.cycle}, ${escapeHtml(e.text)}"`
+      : "";
     return `<tr${attrs}><td class="c">${e.cycle}</td><td class="a">${hex(e.address, 4)}</td>` +
       `<td class="b">${e.bytes.map((b) => hex(b, 2)).join(" ")}</td><td class="i">${escapeHtml(e.text)}</td>` +
       `<td class="fx">${effectHtml(e.effect)}</td></tr>`;
@@ -974,6 +1054,11 @@ function renderStatus() {
   if (commandError) {
     box.classList.add("bad");
     box.textContent = commandError.charAt(0).toUpperCase() + commandError.slice(1);
+    return;
+  }
+  if (commandNotice) {
+    box.classList.add("good");
+    box.textContent = commandNotice;
     return;
   }
   if (!state) return;
@@ -1054,6 +1139,26 @@ el.progDelete.addEventListener("click", () => {
   openProgram(programs.length ? { kind: "mine", id: programs[0].id } : { kind: "example", name: DEFAULT_EXAMPLE });
 });
 el.progDownload.addEventListener("click", downloadProgram);
+el.progShare.addEventListener("click", shareProgram);
+window.addEventListener("hashchange", () => { openSharedLink(); });
+el.examplesGallery.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-open-example]");
+  if (!button) return;
+  showPage("console");
+  history.replaceState(null, "", "#console");
+  openProgram({ kind: "example", name: button.dataset.openExample });
+});
+
+// Keyboard access for controls drawn as text: register values, flag lamps and rewindable trace rows
+for (const container of [el.regs, el.traceBody]) {
+  container.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const control = event.target.closest("[data-edit-reg], [data-flag-bit], [data-rewind]");
+    if (!control || event.target.tagName === "INPUT") return;
+    event.preventDefault();
+    control.click();
+  });
+}
 el.progOpen.addEventListener("click", () => el.progFile.click());
 el.progFile.addEventListener("change", async () => {
   const file = el.progFile.files[0];
@@ -1205,8 +1310,26 @@ pageTabs.forEach((t, i) => {
   });
 });
 
+// ---------- Theme ----------
+const THEMES = ["system", "light", "dark"];
+function applyTheme(theme) {
+  if (!THEMES.includes(theme)) theme = "system";
+  if (theme === "system") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme;
+  el.themeToggle.textContent = `Theme: ${theme.charAt(0).toUpperCase()}${theme.slice(1)}`;
+  el.themeToggle.setAttribute("aria-label", `Theme: ${theme}. Switch theme`);
+  store.set("theme", theme);
+  readMapColors();
+  render();
+}
+el.themeToggle.addEventListener("click", () => {
+  const theme = store.get("theme", "system");
+  applyTheme(THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]);
+});
+
 // ---------- Start ----------
 async function start() {
+  applyTheme(store.get("theme", "system"));
   const hash = location.hash.slice(1);
   showPage(pageTabs.includes(hash) ? hash : store.get("tab", "console"));
   el.clock.value = store.get("clock", 27);
@@ -1229,9 +1352,11 @@ async function start() {
     }
     saveProgramsNow();
   }
-  const saved = store.get("current", null);
-  const valid = saved && ((saved.kind === "mine" && programs.some((p) => p.id === saved.id)) || (saved.kind === "example" && saved.name));
-  await openProgram(valid ? saved : { kind: "example", name: DEFAULT_EXAMPLE });
+  if (!(await openSharedLink())) {
+    const saved = store.get("current", null);
+    const valid = saved && ((saved.kind === "mine" && programs.some((p) => p.id === saved.id)) || (saved.kind === "example" && saved.name));
+    await openProgram(valid ? saved : { kind: "example", name: DEFAULT_EXAMPLE });
+  }
   render();
 }
 start();

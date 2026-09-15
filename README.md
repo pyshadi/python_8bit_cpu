@@ -70,10 +70,10 @@ python3 -m src run examples/fibonacci.asm --trace
 <code>python3 -m src disasm PROGRAM</code> prints the assembled program with addresses, bytes and labels.<br>
 Exit codes: 0 halted or stopped at a breakpoint, 1 assembler or runtime error, 2 invalid arguments, 3 step limit reached.<br>
 
-The <code>examples/</code> folder has programs to try: <code>countdown.asm</code>, <code>multiply.asm</code>, <code>bitcount.asm</code> and <code>fibonacci.asm</code>. CI runs all of them.<br>
+The <code>examples/</code> folder has programs to try: <code>countdown.asm</code>, <code>multiply.asm</code>, <code>factorial.asm</code>, <code>gcd.asm</code>, <code>bitcount.asm</code>, <code>swap.asm</code> and <code>fibonacci.asm</code>. CI runs all of them.<br>
 
 ## Brassboard dashboard
-**Open it in your browser: https://pyshadi.github.io/python_8bit_cpu/** — nothing to install. Write or pick a program, set breakpoints, step or run it, and watch the registers, memory (RAM map, hex dump, stack and ROM) and the trace. RAM can be 1 KB, 4 KB or 64 KB. A data-path diagram shows what the next instruction will do before it runs, Back and clicking a trace row undo the last 1,000 instructions and edits, and register, flag and memory values can be edited in place. The Manual tab explains every control.
+**Open it in your browser: https://pyshadi.github.io/python_8bit_cpu/** — nothing to install. Write or pick a program, set breakpoints, step or run it, and watch the registers, memory (RAM map, hex dump, stack and ROM) and the trace. RAM can be 1 KB, 4 KB or 64 KB. A data-path diagram shows what the next instruction will do before it runs, Back and clicking a trace row undo the last 1,000 instructions and edits, and register, flag and memory values can be edited in place. Your own programs are saved in the browser and can be downloaded or shared as a link that contains the program. The theme follows your system or can be switched to light or dark. The Manual tab explains every control.
 
 The dashboard runs this repository's Python code in the browser with [Pyodide](https://pyodide.org). It lives in <code>dashboard/</code>:
 
