@@ -37,6 +37,40 @@ while not cpu.halted:
 
 A <code>fetch_byte</code> method fetches the next byte from ROM, and a <code>fetch_word</code> method fetches the next two bytes and combines them into a single 16-bit value.<br>
 
+### Debugging
+These methods power the command-line runner and the planned Brassboard dashboard:
+
+| Method | What it does |
+| --- | --- |
+| <code>step()</code> | Runs one instruction and returns a <code>StepRecord</code>: <code>address</code>, decoded <code>instruction</code>, <code>register_writes</code> and <code>ram_writes</code> as <code>(old, new)</code>, <code>next_address</code>, <code>jumped</code>, <code>halted</code>. Raises <code>RuntimeError</code> on a halted CPU. |
+| <code>run_until(max_steps=100000, on_step=None)</code> | Steps until the CPU halts, reaches an address in <code>cpu.breakpoints</code>, or hits the step limit. Returns a <code>RunResult</code> whose <code>reason</code> is <code>halted</code>, <code>breakpoint</code> or <code>step_limit</code>. A breakpoint stops before its instruction runs; calling again continues past it. |
+| <code>snapshot()</code> / <code>restore(snapshot)</code> | Capture and restore registers, RAM, halt state and <code>cycles</code>. |
+| <code>reset()</code> | Clears registers and RAM and sets SP to the top of RAM. Breakpoints are kept. |
+
+<code>StepRecord</code>, <code>RunResult</code> and <code>Snapshot</code> live in <code>trace.py</code>, along with <code>format_record()</code> for one-line trace output.
+
+## disassembler.py
+<code>disassemble(code, address)</code> decodes the instruction at an address into an <code>Instruction</code> (<code>mnemonic</code>, <code>operands</code>, <code>bytes</code>, <code>size</code>), and <code>disassemble_all(code)</code> decodes a whole program. <code>Instruction.text(labels)</code> formats it back to assembly, such as <code>jnz, C, loop</code>. Invalid bytes raise <code>DisassemblerError</code>.<br>
+
+## Command-line runner
+Run a program from the repository root:
+
+<pre>
+python3 -m src run examples/fibonacci.asm --trace
+</pre>
+
+| Option | Meaning |
+| --- | --- |
+| <code>--trace</code> | Print one line per instruction: cycle, address, bytes, instruction and its effect |
+| <code>--break LOCATION</code> | Stop before the instruction at a label or address (<code>next</code>, <code>0x0018</code>); repeatable |
+| <code>--max-steps N</code> | Stop after N instructions (default 100000) |
+| <code>--ram BYTES</code> | RAM size (default 1024) |
+
+<code>python3 -m src disasm PROGRAM</code> prints the assembled program with addresses, bytes and labels.<br>
+Exit codes: 0 halted or stopped at a breakpoint, 1 assembler or runtime error, 2 invalid arguments, 3 step limit reached.<br>
+
+The <code>examples/</code> folder has programs to try: <code>countdown.asm</code>, <code>multiply.asm</code>, <code>bitcount.asm</code> and <code>fibonacci.asm</code>. CI runs all of them.<br>
+
 ## registers.py
 
 The Registers class has a <code>read</code> method, which takes a register index and returns the value stored in that register. It also has a write method, which takes a register index and a value, and stores that value in the specified register. Invalid indices raise an <code>IndexError</code>.<br>
@@ -195,4 +229,8 @@ CI runs the tests and <code>main.py</code> on Python 3.9–3.13 for every pull r
 | <code>tests/instructions_test.py</code> | Instruction behavior: jumps, stack, call/ret, XOR and DIV |
 | <code>tests/assembler_test.py</code> | Assembler syntax, labels, comments, and error handling |
 | <code>tests/addresses_test.py</code> | 16-bit addresses: RAM above 255, programs larger than 256 bytes, far jumps and calls |
+| <code>tests/disassembler_test.py</code> | Disassembly round trips, label formatting, and the assembler source map |
+| <code>tests/stepping_test.py</code> | Step records, breakpoints, step limits, snapshots and reset |
+| <code>tests/examples_test.py</code> | Every program in <code>examples/</code> halts with the expected result |
+| <code>tests/cli_test.py</code> | The command-line runner: trace output, breakpoints, errors and exit codes |
 | <code>tests/cpu_test.py</code> | End-to-end programs |
