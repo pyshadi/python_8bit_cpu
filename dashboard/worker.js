@@ -102,11 +102,13 @@ function tick() {
   lastTick = now;
 
   if (steps > 0) {
-    const result = call({ command: "run", max_steps: steps });
-    if (result.stopped) running = false;
-    // At full speed, update the page at most ~60 times per second; always report a stop.
-    if (!maxSpeed || result.stopped || now - lastPost > 16) {
-      post({ type: "result", running, ...result });
+    // At full speed, update the page at most ~60 times per second. Runs in between are "quiet":
+    // Python skips building the state, and keeps their trace for the next update.
+    const update = !maxSpeed || now - lastPost > 16;
+    const outcome = call({ command: "run", max_steps: steps, quiet: !update });
+    if (outcome.stopped) running = false;
+    if (update || outcome.stopped) {
+      post({ type: "result", running, ...(update ? outcome : call({ command: "state" })) });
       lastPost = now;
     }
   }
