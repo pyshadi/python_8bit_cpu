@@ -26,7 +26,7 @@
     --f-mono: "Martian Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   }
   @media (prefers-color-scheme: light) {
-    :root {
+    :root:not([data-theme="dark"]) {
       color-scheme: light;
       --ground: #E3E5DF; --chassis: #D8DBD3; --panel: #EEF0EA; --raised: #F7F8F4;
       --line: #C2C6BB; --line-soft: #D5D8CF;
@@ -39,6 +39,19 @@
       --bevel: inset 0 1px 0 rgba(255, 255, 255, 0.7);
       --key: linear-gradient(#FBFCF8, #E9EBE4);
     }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --ground: #E3E5DF; --chassis: #D8DBD3; --panel: #EEF0EA; --raised: #F7F8F4;
+    --line: #C2C6BB; --line-soft: #D5D8CF;
+    --ink: #1C1E1A; --ink-2: #53574E; --ink-3: #80847A;
+    --brass: #9A621E; --brass-soft: rgba(154, 98, 30, 0.12);
+    --brass-glow: 0 0 0 1px rgba(154, 98, 30, 0.6), 0 0 8px rgba(196, 128, 40, 0.35);
+    --verdigris: #2A7869; --verd-soft: rgba(42, 120, 105, 0.12);
+    --signal: #B63A24; --signal-soft: rgba(182, 58, 36, 0.12);
+    --lamp-off: #CACDC3;
+    --bevel: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    --key: linear-gradient(#FBFCF8, #E9EBE4);
   }
 
   * { box-sizing: border-box; }
@@ -268,6 +281,13 @@
   .srow.val .d { color: var(--verdigris); }
   .srow.more { color: var(--ink-3); }
 
+  /* Examples gallery */
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .gallery .card { border: 1px solid var(--line); border-radius: 3px; background: var(--panel); padding: 14px; display: grid; gap: 8px; align-content: start; }
+  .gallery .card h3 { font-family: var(--f-mono); font-stretch: 87.5%; font-size: 14px; font-weight: 500; }
+  .gallery .card p { font-size: 14px; color: var(--ink-2); }
+  .gallery .card .tool { justify-self: start; }
+
   /* Manual */
   .manual { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 48px; align-items: start; padding-block: 24px; }
   .toc { position: sticky; top: 16px; display: grid; gap: 2px; }
@@ -319,6 +339,13 @@
 </style>
 </head>
 <body>
+  <script>
+    // Apply a saved light/dark choice before the page paints, so it doesn't flash the other theme.
+    try {
+      const theme = JSON.parse(localStorage.getItem("brassboard:theme"));
+      if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+    } catch (e) { /* no saved theme */ }
+  </script>
   <header class="appbar">
     <span class="wordmark">Brass<span>board</span></span>
     <nav class="pagetabs" role="tablist" aria-label="Sections">
@@ -326,6 +353,7 @@
       <button class="pagetab" role="tab" type="button" id="t-manual" aria-controls="p-manual" aria-selected="false"><span class="engrave">Manual</span></button>
     </nav>
     <span class="python mono" id="python">Loading Python…</span>
+    <button class="tool" type="button" id="themeToggle">Theme: System</button>
   </header>
 
   <main id="p-console" role="tabpanel" aria-labelledby="t-console">
@@ -375,6 +403,7 @@
             <button class="tool" type="button" id="prog-new">New</button>
             <button class="tool" type="button" id="prog-duplicate">Duplicate</button>
             <button class="tool" type="button" id="prog-open">Open…</button>
+            <button class="tool" type="button" id="prog-share">Share</button>
             <button class="tool" type="button" id="prog-download">Download</button>
             <button class="tool danger" type="button" id="prog-delete">Delete</button>
           </div>
@@ -462,6 +491,7 @@
       <nav class="toc" aria-label="Manual contents">
         <a href="#m-start">Getting started</a>
         <a href="#m-programs">Programs</a>
+        <a href="#m-examples">Examples</a>
         <a href="#m-controls">Controls</a>
         <a href="#m-colors">Lamps and colors</a>
         <a href="#m-panels">Panels</a>
@@ -493,11 +523,18 @@
                 <tr><td>Examples</td><td class="soft">Examples can't be changed. Typing in one saves your version as a copy under My programs; the example stays as it was.</td></tr>
                 <tr><td>Duplicate</td><td class="soft">Saves a copy of the current program under My programs.</td></tr>
                 <tr><td>Open…</td><td class="soft">Adds an <code>.asm</code> file from your computer to My programs.</td></tr>
+                <tr><td>Share</td><td class="soft">Copies a link that contains the program itself, so no account or server is needed. Whoever opens the link gets their own copy under My programs. Long programs make long links.</td></tr>
                 <tr><td>Download</td><td class="soft">Saves the current program as an <code>.asm</code> file. It also runs with <code>python3 -m src run</code>.</td></tr>
                 <tr><td>Delete</td><td class="soft">Removes the current program from My programs after you confirm. Examples can't be deleted.</td></tr>
               </tbody>
             </table>
           </div>
+        </section>
+
+        <section id="m-examples">
+          <h2>Examples</h2>
+          <p class="muted">Example programs from the repository. Open one to step through it; typing in it saves your own copy.</p>
+          <div class="gallery" id="examplesGallery"></div>
         </section>
 
         <section id="m-controls">
@@ -517,6 +554,8 @@
                 <tr><td>Assemble</td><td><kbd>⌘↵</kbd></td><td class="soft">Assembles Source now and resets the machine. Also happens automatically shortly after you stop typing.</td></tr>
                 <tr><td>Clock</td><td></td><td class="soft">Run speed from 1 Hz to 10 kHz. At “max” the machine runs as fast as it can and the panels refresh about 60 times per second.</td></tr>
                 <tr><td>Cycle</td><td></td><td class="soft">Instructions executed since the last reset.</td></tr>
+                <tr><td>Theme</td><td></td><td class="soft">The button at the top right switches between System (follows your computer's setting), Light and Dark.</td></tr>
+                <tr><td>Keyboard</td><td></td><td class="soft">Every control can be reached with Tab. Register values, flag lamps and rewindable trace rows respond to Enter or Space.</td></tr>
                 <tr><td>Rewind</td><td></td><td class="soft">Click a row in Trace to go back to just before that instruction ran. Rows further back than the last 1,000 instructions and edits can't be selected.</td></tr>
                 <tr><td>Edit a register</td><td></td><td class="soft">Click a register's value, type a new one and press Enter (Escape cancels). Values are hex; <code>0b101</code> and <code>0d42</code> enter binary and decimal. Click a flag lamp in F to flip that flag.</td></tr>
                 <tr><td>Edit memory</td><td></td><td class="soft">Double-click a byte in the RAM dump and type a new value. Edits are undone by Back like instructions. Editing clears a runtime error, so a program stopped by, say, a stack underflow can continue once the problem is fixed.</td></tr>

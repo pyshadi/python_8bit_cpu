@@ -14,6 +14,9 @@ EXAMPLES = Path(__file__).parent.parent / "examples"
 EXPECTED = {
     "bitcount.asm": lambda cpu: cpu.registers.read(Registers.C) == 5,
     "countdown.asm": lambda cpu: cpu.registers.read(Registers.A) == 0,
+    "factorial.asm": lambda cpu: cpu.registers.read(Registers.A) == 120,
+    "gcd.asm": lambda cpu: cpu.registers.read(Registers.A) == 6,
+    "swap.asm": lambda cpu: (cpu.registers.read(Registers.B), cpu.registers.read(Registers.C)) == (42, 7),
     "fibonacci.asm": lambda cpu: [cpu.ram.read(a) for a in range(0x3F5, 0x3FF)] == [55, 34, 21, 13, 8, 5, 3, 2, 1, 1],
     "multiply.asm": lambda cpu: cpu.registers.read(Registers.D) == 42 and cpu.ram.read(0x0100) == 42,
 }
