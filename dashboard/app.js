@@ -15,13 +15,17 @@ const DEFAULT_EXAMPLE = "fibonacci.asm";
 const NEW_PROGRAM = "; new program\n\n        hlt\n";
 const NEW_C_PROGRAM = "int main() {\n    print(42);\n    return 0;\n}\n";
 const C_KEYWORDS = new Set(["int", "char", "byte", "unsigned", "void", "const", "if", "else", "while", "for", "do", "return", "break", "continue"]);
-const C_BUILTINS = new Set(["print", "putchar", "puts", "plot", "pixel", "clear", "keys", "rand", "frame", "peek", "poke", "halt"]);
+const C_BUILTINS = new Set(["print", "putchar", "puts", "plot", "pixel", "clear", "keys", "keychar", "rand", "frame", "peek", "poke", "halt"]);
 const SCREEN_SIZE = 32;
 const SCREEN_BASE = 0xF000;
 const KEYS_ADDRESS = 0xFF00;
 // The display is hardware, so its colors don't change with the theme: black, red, brass, white
 const PALETTE = [[13, 14, 12], [222, 91, 67], [214, 156, 76], [231, 226, 212]];
-const KEY_BITS = { ArrowUp: 1, ArrowDown: 2, ArrowLeft: 4, ArrowRight: 8, " ": 16 };
+const KEY_BITS = { ArrowUp: 1, ArrowDown: 2, ArrowLeft: 4, ArrowRight: 8, Enter: 16 };
+const ENTER_BIT = 16;
+const ENTER_CHAR = 10;
+const CHAR_KEY_ADDRESS = 0xFF02;
+const KEYBOARD_ROWS = ["1234567890", "QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
 
 const $ = (id) => document.getElementById(id);
 const el = {
@@ -61,6 +65,8 @@ let commandError = null;
 let commandErrorTimer = null;
 let commandNotice = null;
 let keysMask = 0;
+let charKey = 0;          // ASCII code of the character key held, or 0
+let pausing = false;      // Pause was pressed: results from the still-running machine don't turn Run back on
 let screenBytes = new Uint8Array(SCREEN_SIZE * SCREEN_SIZE);
 let running = false;
 let state = null;
@@ -132,7 +138,8 @@ function showNotice(message) {
 }
 
 function applyResult(result) {
-  running = result.running;
+  running = result.running && !pausing;
+  if (!result.running) pausing = false;
   if (result.error) {
     renderTransport();
     showCommandError(result.error);
@@ -667,14 +674,28 @@ function renderDisplay() {
 }
 
 function renderKeys() {
-  for (const lamp of el.keypad.children) lamp.classList.toggle("on", !!(keysMask & Number(lamp.dataset.bit)));
+  for (const lamp of el.keypad.querySelectorAll(".key-lamp")) {
+    const bit = Number(lamp.dataset.bit || 0);
+    const char = Number(lamp.dataset.char || 0);
+    lamp.classList.toggle("on", !!(keysMask & bit) || (char !== 0 && char === charKey));
+  }
 }
 
-function setKeys(mask) {
-  if (mask === keysMask) return;
+function setKeys(mask, char = charKey) {
+  if (mask === keysMask && char === charKey) return;
   keysMask = mask;
+  charKey = char;
   renderKeys();
-  if (ready) send("set_keys", { mask });
+  if (ready) send("set_keys", { mask, char });
+}
+
+function buildKeyboard() {
+  const key = (label, char, extra = "") =>
+    `<button class="key-lamp${extra}" type="button" data-char="${char}"${char === ENTER_CHAR ? ` data-bit="${ENTER_BIT}"` : ""}>${label}</button>`;
+  const rows = KEYBOARD_ROWS.map((row, i) =>
+    `<div class="kb-row${i >= 2 ? ` indent-${i - 1}` : ""}">${[...row].map((c) => key(c, c.charCodeAt(0))).join("")}</div>`);
+  rows.push(`<div class="kb-row">${key("Space", 32, " wide")}${key("Enter", ENTER_CHAR, " wide")}</div>`);
+  $("kbKeys").innerHTML = rows.join("");
 }
 
 function renderOutput() {
@@ -1049,6 +1070,7 @@ function readByte(address) {
   if (address < ram.length) return ram[address];
   if (address >= SCREEN_BASE && address < SCREEN_BASE + SCREEN_SIZE * SCREEN_SIZE) return screenBytes[address - SCREEN_BASE];
   if (address === KEYS_ADDRESS) return state ? state.keys : 0;
+  if (address === CHAR_KEY_ADDRESS) return state ? state.char_key : 0;
   return 0;
 }
 
@@ -1391,8 +1413,17 @@ function doBack() { if (!el.back.disabled) { editing = null; send("back"); } }
 function doRunPause() {
   if (el.run.disabled) return;
   editing = null;
-  if (running) send("pause");
-  else send("run", clockSetting());
+  if (running) {
+    // Show the machine as paused straight away instead of waiting for the worker's reply
+    pausing = true;
+    running = false;
+    renderTransport();
+    renderTrace();
+    send("pause");
+  } else {
+    pausing = false;
+    send("run", clockSetting());
+  }
 }
 function doReset() { if (!el.reset.disabled) { editing = null; send("reset"); } }
 
@@ -1598,25 +1629,39 @@ function execTabChanged(tab) {
   if (tab === "tab-display") el.screen.focus();
 }
 
-// Keys: arrows and space while the display has focus, or press and hold the key buttons
+// Keys: the physical keyboard while the display has focus, or press and hold the on-screen keys.
+// Arrows and Enter set bits in the keys register; letters, digits, space and Enter set the character key.
+function keyFromEvent(event) {
+  if (event.metaKey || event.ctrlKey || event.altKey) return null;
+  if (event.key in KEY_BITS) return { bit: KEY_BITS[event.key], char: event.key === "Enter" ? ENTER_CHAR : 0 };
+  if (event.key.length === 1 && /[a-z0-9 ]/i.test(event.key)) return { bit: 0, char: event.key.toUpperCase().charCodeAt(0) };
+  return null;
+}
+function pressKey({ bit, char }) {
+  setKeys(keysMask | bit, char || charKey);
+}
+function releaseKey({ bit, char }) {
+  setKeys(keysMask & ~bit, char && char === charKey ? 0 : charKey);
+}
 el.screen.addEventListener("keydown", (event) => {
-  const bit = KEY_BITS[event.key];
-  if (bit === undefined) return;
+  const key = keyFromEvent(event);
+  if (!key) return;
   event.preventDefault();
-  setKeys(keysMask | bit);
+  pressKey(key);
 });
 el.screen.addEventListener("keyup", (event) => {
-  const bit = KEY_BITS[event.key];
-  if (bit === undefined) return;
+  const key = keyFromEvent(event);
+  if (!key) return;
   event.preventDefault();
-  setKeys(keysMask & ~bit);
+  releaseKey(key);
 });
-el.screen.addEventListener("blur", () => setKeys(0));
+el.screen.addEventListener("blur", () => setKeys(0, 0));
 el.screen.addEventListener("pointerdown", () => el.screen.focus());
-for (const lamp of el.keypad.children) {
-  const bit = Number(lamp.dataset.bit);
-  const release = () => setKeys(keysMask & ~bit);
-  lamp.addEventListener("pointerdown", (event) => { event.preventDefault(); lamp.setPointerCapture(event.pointerId); setKeys(keysMask | bit); });
+buildKeyboard();
+for (const lamp of el.keypad.querySelectorAll(".key-lamp")) {
+  const key = { bit: Number(lamp.dataset.bit || 0), char: Number(lamp.dataset.char || 0) };
+  const release = () => releaseKey(key);
+  lamp.addEventListener("pointerdown", (event) => { event.preventDefault(); lamp.setPointerCapture(event.pointerId); pressKey(key); });
   lamp.addEventListener("pointerup", release);
   lamp.addEventListener("pointercancel", release);
 }

@@ -34,7 +34,8 @@ BUILTINS = {
     "plot": 3,     # plot(x, y, color): set a pixel; x and y wrap at 32
     "pixel": 2,    # pixel(x, y): the color of a pixel
     "clear": 1,    # clear(color): fill the screen
-    "keys": 0,     # the keys held: KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_FIRE
+    "keys": 0,     # the keys held: KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_ENTER
+    "keychar": 0,  # the character key held ('A', '7', ' ', or 10 for Enter), or 0
     "rand": 0,     # a random byte
     "frame": 0,    # end of a frame: wait for the next 1/30 second at full speed
     "peek": 1,     # peek(address): read a byte of memory
@@ -43,7 +44,7 @@ BUILTINS = {
 }
 
 PREDEFINED = {
-    "KEY_UP": 1, "KEY_DOWN": 2, "KEY_LEFT": 4, "KEY_RIGHT": 8, "KEY_FIRE": 16,
+    "KEY_UP": 1, "KEY_DOWN": 2, "KEY_LEFT": 4, "KEY_RIGHT": 8, "KEY_ENTER": 16,
     "BLACK": 0, "RED": 1, "BRASS": 2, "WHITE": 3,
     "WIDTH": 32, "HEIGHT": 32,
 }
@@ -52,6 +53,7 @@ SCREEN_HIGH_BYTE = 0xF0
 SCREEN_END_HIGH_BYTE = 0xF4
 KEYS_ADDRESS = 0xFF00
 RANDOM_ADDRESS = 0xFF01
+CHAR_KEY_ADDRESS = 0xFF02
 STACK_ROOM = 128          # bytes of RAM kept free for the stack
 DEVICE_BASE = 0xF000
 
@@ -1301,6 +1303,8 @@ class CodeGenerator:
                 self.emit("outc", "A")
         elif name == "keys":
             self.emit("ld", "A", _address(KEYS_ADDRESS))
+        elif name == "keychar":
+            self.emit("ld", "A", _address(CHAR_KEY_ADDRESS))
         elif name == "rand":
             self.emit("ld", "A", _address(RANDOM_ADDRESS))
         elif name == "frame":

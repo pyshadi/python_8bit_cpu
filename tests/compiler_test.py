@@ -5,7 +5,7 @@ import pytest
 from src.assembler import Assembler
 from src.compiler import CompileError, compile_c
 from src.cpu import CPU
-from src.memory import KEY_FIRE, KEY_LEFT, RAM, ROM
+from src.memory import KEY_ENTER, KEY_LEFT, RAM, ROM
 from src.session import Session
 from src.trace import StopReason
 
@@ -226,7 +226,7 @@ def test_plot_pixel_and_clear():
 
 def test_keys_rand_and_frame():
     cpu = machine("int main() { while (1) { print(keys() & KEY_LEFT); rand(); frame(); } }")
-    cpu.ram.keys = KEY_LEFT | KEY_FIRE
+    cpu.ram.keys = KEY_LEFT | KEY_ENTER
     assert cpu.run_until(max_steps=1000, stop_at_frame=True).reason == StopReason.FRAME
     assert "".join(cpu.output) == numbers(4)
 
@@ -294,7 +294,7 @@ EXPECTED_OUTPUT = {
     "sieve.c": numbers(2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97),
     "stripes.c": "",
 }
-INTERACTIVE = {"bounce.c", "sketch.c"}
+INTERACTIVE = {"bounce.c", "sketch.c", "typewriter.c"}
 
 
 def test_every_c_example_is_checked():
@@ -312,7 +312,7 @@ def test_stripes_example_draws_the_stripes():
     assert [cpu.ram.screen[i] for i in (0, 1, 3, 33, 31 * 32 + 31)] == [0, 1, 3, 2, 2]
 
 
-def test_sketch_example_draws_with_the_keys_and_wipes_on_fire():
+def test_sketch_example_draws_with_the_keys_and_wipes_on_enter():
     cpu = machine((EXAMPLES / "sketch.c").read_text())
     cpu.run_until(max_steps=20_000, stop_at_frame=True)
     centre = 16 * 32 + 16
@@ -320,17 +320,25 @@ def test_sketch_example_draws_with_the_keys_and_wipes_on_fire():
     cpu.ram.keys = KEY_LEFT
     cpu.run_until(max_steps=20_000, stop_at_frame=True)
     assert cpu.ram.screen[centre] == 3 and cpu.ram.screen[centre - 1] == 3
-    cpu.ram.keys = KEY_FIRE
+    cpu.ram.keys = KEY_ENTER
     cpu.run_until(max_steps=20_000, stop_at_frame=True)
     assert cpu.ram.screen[centre] == 0 and cpu.ram.screen[centre - 1] == 3
 
 
-def test_bounce_example_moves_the_ball_and_keeps_a_trail_on_fire():
+def test_typewriter_example_prints_each_key_press_once():
+    cpu = machine((EXAMPLES / "typewriter.c").read_text())
+    for char in (ord("A"), ord("A"), 0, ord("B"), ord("7"), 10):
+        cpu.ram.char_key = char
+        assert cpu.run_until(max_steps=5_000, stop_at_frame=True).reason == StopReason.FRAME
+    assert "".join(cpu.output) == "AB7\n"
+
+
+def test_bounce_example_moves_the_ball_and_keeps_a_trail_on_enter():
     cpu = machine((EXAMPLES / "bounce.c").read_text())
     for _ in range(2):
         assert cpu.run_until(max_steps=20_000, stop_at_frame=True).reason == StopReason.FRAME
     assert cpu.ram.screen[7 * 32 + 5] == 2 and cpu.ram.screen[6 * 32 + 4] == 0
-    cpu.ram.keys = KEY_FIRE
+    cpu.ram.keys = KEY_ENTER
     cpu.run_until(max_steps=20_000, stop_at_frame=True)
     assert cpu.ram.screen[7 * 32 + 5] == 2 and cpu.ram.screen[8 * 32 + 6] == 2
 

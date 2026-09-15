@@ -4,8 +4,9 @@ ROM holds the program; RAM holds data, the stack and the memory-mapped devices.
 16-bit address space:
     0000-EFFF  RAM (as much as the chosen size allows)
     F000-F3FF  screen: 32 x 32 pixels, one byte per pixel, colors 0-3, row by row
-    FF00       keys, read-only: bit 0 up, 1 down, 2 left, 3 right, 4 fire
+    FF00       keys, read-only: bit 0 up, 1 down, 2 left, 3 right, 4 Enter
     FF01       random byte, read-only
+    FF02       character key, read-only: the ASCII code of the letter, digit, space or Enter (10) held, or 0
 """
 
 DEVICE_BASE = 0xF000
@@ -15,7 +16,9 @@ SCREEN_HEIGHT = 32
 SCREEN_END = SCREEN_BASE + SCREEN_WIDTH * SCREEN_HEIGHT
 KEYS = 0xFF00
 RANDOM = 0xFF01
-KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_FIRE = 0x01, 0x02, 0x04, 0x08, 0x10
+CHAR_KEY = 0xFF02
+KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_ENTER = 0x01, 0x02, 0x04, 0x08, 0x10
+READ_ONLY_DEVICES = {KEYS: "keys", RANDOM: "random", CHAR_KEY: "character key"}
 
 
 class ROM:
@@ -58,6 +61,7 @@ class RAM:
         self.memory = [0] * self.size
         self.screen = [0] * (SCREEN_WIDTH * SCREEN_HEIGHT)
         self.keys = 0                   # keys currently held, set by the dashboard
+        self.char_key = 0               # character key currently held, set by the dashboard
         self.cycle_source = lambda: 0   # the CPU connects its cycle counter, used by RANDOM
         # When set to a dict, write() records each address's value before its first write.
         self.write_log = None
@@ -71,12 +75,13 @@ class RAM:
             return self.keys
         if address == RANDOM:
             return random_byte(self.cycle_source(), address)
+        if address == CHAR_KEY:
+            return self.char_key
         raise IndexError(self._out_of_bounds(address))
 
     def write(self, address, value):
-        if address in (KEYS, RANDOM):
-            device = "keys" if address == KEYS else "random"
-            raise IndexError(f"Address {address:04X} ({device}) is read-only")
+        if address in READ_ONLY_DEVICES:
+            raise IndexError(f"Address {address:04X} ({READ_ONLY_DEVICES[address]}) is read-only")
         old = self.peek(address)
         if self.write_log is not None and address not in self.write_log:
             self.write_log[address] = old

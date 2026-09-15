@@ -299,12 +299,18 @@
   .output:empty::before { content: "—"; color: var(--ink-3); }
 
   /* Display */
-  .display-wrap { display: grid; justify-items: center; align-content: start; gap: 14px; padding: 18px 14px; min-height: 440px; }
-  #screen { width: min(100%, 384px); aspect-ratio: 1; height: auto; image-rendering: pixelated; background: #0d0e0c; border: 1px solid var(--line); border-radius: 2px; cursor: crosshair; }
+  .display-wrap { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: flex-start; gap: 18px 22px; padding: 16px 14px; min-height: 440px; }
+  #screen { flex: 0 0 auto; width: min(100%, 352px); max-width: 100%; aspect-ratio: 1; height: auto; image-rendering: pixelated; background: #0d0e0c; border: 1px solid var(--line); border-radius: 2px; cursor: crosshair; }
   #screen:focus-visible, #screen:focus { outline: 2px solid var(--brass); outline-offset: 3px; }
-  .keypad { display: flex; gap: 6px; }
-  .key-lamp { min-width: 40px; height: 30px; padding: 0 8px; background: var(--key); border: 1px solid var(--line); border-radius: 3px; box-shadow: var(--bevel); color: var(--ink-2); font-family: var(--f-label); font-weight: 600; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; touch-action: none; }
-  .key-lamp.wide { min-width: 64px; }
+  .keypad { display: grid; gap: 14px; align-content: start; justify-items: start; }
+  .kb-keys { display: grid; gap: 4px; }
+  .kb-row { display: flex; gap: 4px; }
+  .kb-row.indent-1 { padding-inline-start: 14px; }
+  .kb-row.indent-2 { padding-inline-start: 28px; }
+  .kb-arrows { display: grid; grid-template-columns: repeat(3, 32px); grid-template-areas: ". up ." "left down right"; gap: 4px; }
+  .kb-arrows .up { grid-area: up; } .kb-arrows .left { grid-area: left; } .kb-arrows .down { grid-area: down; } .kb-arrows .right { grid-area: right; }
+  .key-lamp { min-width: 28px; height: 28px; padding: 0 5px; background: var(--key); border: 1px solid var(--line); border-radius: 3px; box-shadow: var(--bevel); color: var(--ink-2); font-family: var(--f-label); font-weight: 600; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; touch-action: none; }
+  .key-lamp.wide { min-width: 96px; }
   .key-lamp.on { background: var(--brass); border-color: var(--brass); color: var(--ground); box-shadow: var(--brass-glow); }
 
   /* Examples gallery */
@@ -486,13 +492,15 @@
         </div>
         <div id="pane-display" role="tabpanel" aria-labelledby="tab-display" hidden>
           <div class="display-wrap">
-            <canvas id="screen" width="32" height="32" tabindex="0" aria-label="32 by 32 pixel display. While it has focus, the arrow keys and space are sent to the program."></canvas>
-            <div class="keypad" id="keypad" aria-label="Keys held">
-              <button class="key-lamp" type="button" data-bit="4" aria-label="Left">←</button>
-              <button class="key-lamp" type="button" data-bit="1" aria-label="Up">↑</button>
-              <button class="key-lamp" type="button" data-bit="2" aria-label="Down">↓</button>
-              <button class="key-lamp" type="button" data-bit="8" aria-label="Right">→</button>
-              <button class="key-lamp wide" type="button" data-bit="16" aria-label="Fire">Fire</button>
+            <canvas id="screen" width="32" height="32" tabindex="0" aria-label="32 by 32 pixel display. While it has focus, the arrow keys, letters, digits, space and Enter are sent to the program."></canvas>
+            <div class="keypad" id="keypad" aria-label="Keyboard">
+              <div class="kb-keys" id="kbKeys"></div>
+              <div class="kb-arrows">
+                <button class="key-lamp up" type="button" data-bit="1" aria-label="Up">↑</button>
+                <button class="key-lamp left" type="button" data-bit="4" aria-label="Left">←</button>
+                <button class="key-lamp down" type="button" data-bit="2" aria-label="Down">↓</button>
+                <button class="key-lamp right" type="button" data-bit="8" aria-label="Right">→</button>
+              </div>
             </div>
           </div>
         </div>
@@ -619,7 +627,8 @@
                 <tr><td><code>plot(x, y, color)</code></td><td class="soft">Sets a pixel on the Display. <code>x</code> and <code>y</code> wrap at 32. Colors: <code>BLACK</code>, <code>RED</code>, <code>BRASS</code>, <code>WHITE</code>.</td></tr>
                 <tr><td><code>pixel(x, y)</code></td><td class="soft">The color of a pixel.</td></tr>
                 <tr><td><code>clear(color)</code></td><td class="soft">Fills the Display with one color.</td></tr>
-                <tr><td><code>keys()</code></td><td class="soft">The keys held. Test one with <code>KEY_UP</code>, <code>KEY_DOWN</code>, <code>KEY_LEFT</code>, <code>KEY_RIGHT</code> or <code>KEY_FIRE</code>: <code>if (keys() &amp; KEY_LEFT) x--;</code></td></tr>
+                <tr><td><code>keys()</code></td><td class="soft">The keys held. Test one with <code>KEY_UP</code>, <code>KEY_DOWN</code>, <code>KEY_LEFT</code>, <code>KEY_RIGHT</code> or <code>KEY_ENTER</code>: <code>if (keys() &amp; KEY_LEFT) x--;</code></td></tr>
+                <tr><td><code>keychar()</code></td><td class="soft">The letter, digit or space key held, such as <code>'A'</code> or <code>'7'</code> (letters are upper case), 10 for Enter, or 0 when none is held.</td></tr>
                 <tr><td><code>rand()</code></td><td class="soft">A random byte.</td></tr>
                 <tr><td><code>frame()</code></td><td class="soft">Ends a frame. At max clock speed the machine waits here for the next 1/30 second.</td></tr>
                 <tr><td><code>peek(address)</code> · <code>poke(address, value)</code></td><td class="soft">Read or write any byte of memory, such as <code>poke(0xF000 + i, RED)</code>.</td></tr>
@@ -639,7 +648,8 @@
               <tbody>
                 <tr><td><code>0000–EFFF</code></td><td>RAM</td><td class="soft">As much as the RAM setting allows (60 KB when 64 KB is chosen). The stack starts at the top of RAM.</td></tr>
                 <tr><td><code>F000–F3FF</code></td><td>Screen</td><td class="soft">32 × 32 pixels, one byte each, row by row: the pixel at column x, row y is at <code>F000 + y × 32 + x</code>. Colors: 0 black, 1 red, 2 brass, 3 white. Shown in the Display tab.</td></tr>
-                <tr><td><code>FF00</code></td><td>Keys</td><td class="soft">Read-only. Add up the keys held: 1 up, 2 down, 4 left, 8 right, 16 fire (space). Click the display, then press keys, or press and hold the buttons under it.</td></tr>
+                <tr><td><code>FF00</code></td><td>Keys</td><td class="soft">Read-only. Add up the keys held: 1 up, 2 down, 4 left, 8 right, 16 Enter. Click the display, then press keys, or press and hold the keys beside it.</td></tr>
+                <tr><td><code>FF02</code></td><td>Character key</td><td class="soft">Read-only. The ASCII code of the letter, digit or space key held (letters are upper case), 10 for Enter, or 0.</td></tr>
                 <tr><td><code>FF01</code></td><td>Random</td><td class="soft">Read-only. A different byte on every instruction; rewinding replays exactly the same numbers.</td></tr>
               </tbody>
             </table>
@@ -713,7 +723,7 @@
                 <tr><td>Source</td><td class="soft">Columns from left: breakpoint, line number, address of the instruction on that line, code. The highlighted line is the next instruction to run.</td></tr>
                 <tr><td>Registers</td><td class="soft">Each 8-bit register shows hex, decimal and eight bit lamps (most significant on the left). PC and SP are 16-bit. F shows the four flags.</td></tr>
                 <tr><td>Output</td><td class="soft">The Output tab, after Trace, shows everything the program prints; a dot on the tab means there is new output you haven't seen. <code>out, A</code> prints A as a decimal number on its own line; <code>outc, A</code> prints A as a character (72 is H, 10 starts a new line). Reset clears it, and Back undoes printing along with everything else.</td></tr>
-                <tr><td>Display</td><td class="soft">The 32 × 32 pixel screen at <code>F000–F3FF</code>, with the keys currently held lit underneath. Click the screen to send the arrow keys and space to the program. See Screen and keys.</td></tr>
+                <tr><td>Display</td><td class="soft">The 32 × 32 pixel screen at <code>F000–F3FF</code>, with a keyboard beside it: letters, digits, space, Enter and the arrow keys, lit while held. Click the screen to type on your own keyboard instead. See Screen and keys.</td></tr>
                 <tr><td>Data path</td><td class="soft">What the next instruction will do before it runs, following what the emulator's code actually does. Registers sit on the register bus; A SEL and the MUX pick the ALU's inputs. The ALU lights up only when the instruction uses it (arithmetic, logic, shifts, rotations, compares, <code>inc</code> and <code>dec</code>). Moves, stack operations, <code>call</code>, <code>ret</code> and <code>jmp</code> take the <b>direct transfer</b> path around the ALU. Conditional jumps show the decoder comparing a register (or the carry flag) and whether the jump is taken. The values on the lit wires are the ones the instruction will read and write. If it would fail, the panel heading says why.</td></tr>
                 <tr><td>Memory: map</td><td class="soft">One square per RAM byte, starting at 0000 in the top left: 64 bytes per row for 1 KB and 4 KB, 256 per row for 64 KB. Dark squares are zero, grey squares hold data, patina squares are the stack in use, brass squares are return addresses pushed by <code>call</code>, and bright squares were written by the last instruction. Click a square to show that address.</td></tr>
                 <tr><td>Memory: dump</td><td class="soft">Eight rows of RAM around SP (outlined in brass). Type an address (<code>0x0100</code>, <code>256</code>) or a label and press Enter to show that area instead; Follow SP returns to the stack. Click a byte to select it.</td></tr>

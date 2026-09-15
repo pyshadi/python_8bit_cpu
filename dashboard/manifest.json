@@ -33,6 +33,7 @@
     "sieve.c",
     "sketch.c",
     "stripes.c",
-    "swap.asm"
+    "swap.asm",
+    "typewriter.c"
   ]
 }
