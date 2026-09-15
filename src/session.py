@@ -22,6 +22,30 @@ RAM_SIZES = (1024, 4096, 65536)
 _ASSEMBLER_LINE = re.compile(r"^line (\d+): (.*)$", re.DOTALL)
 
 
+class _RecordingALU:
+    """
+    Stands in for the CPU's ALU during a preview: forwards every call and records the arithmetic
+    and logic operations, so the dashboard can show exactly when the ALU is used.
+    """
+    OPERATIONS = {"add", "sub", "mul", "div", "and_", "or_", "xor", "not_", "shift_left", "shift_right",
+                  "arithmetic_shift_right", "rotate_left", "rotate_right", "compare"}
+
+    def __init__(self, alu, log):
+        self._alu = alu
+        self._log = log
+
+    def __getattr__(self, name):
+        attribute = getattr(self._alu, name)
+        if name not in self.OPERATIONS:
+            return attribute
+
+        def recorded(*args):
+            result = attribute(*args)
+            self._log.append({"op": name, "args": list(args), "result": result if isinstance(result, int) else None})
+            return result
+        return recorded
+
+
 class Session:
     """
     One program and machine. Status is one of:
@@ -364,11 +388,17 @@ class Session:
     def _preview(self):
         """
         What the next instruction will do, found by running it and immediately undoing it.
+        "alu" lists the ALU operations it performed (empty when the decoder does all the work).
         """
+        alu_calls = []
+        real_alu = self.cpu.alu
+        self.cpu.alu = _RecordingALU(real_alu, alu_calls)
         try:
             record = self.cpu.step()
         except Exception as e:  # step() leaves no partial writes behind
             return {"error": f"{type(e).__name__}: {e}"}
+        finally:
+            self.cpu.alu = real_alu
         self.cpu.undo(record)
         return {
             "registers": {Registers.NAMES[reg]: new for reg, (_, new) in record.register_writes.items()},
@@ -376,6 +406,7 @@ class Session:
             "next_address": record.next_address,
             "jumped": record.jumped,
             "halted": record.halted,
+            "alu": alu_calls,
         }
 
     def _flush_trace(self):

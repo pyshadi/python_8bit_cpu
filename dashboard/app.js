@@ -417,62 +417,59 @@ function renderRegisters() {
 // ---------- Data path ----------
 // A textbook-style datapath: register boxes with write enables, an A bus and a MUX-selected B bus into
 // the ALU, function select, flags, and a result bus that feeds registers, RAM and the PC.
-const ALU = {};
-for (const [name, op] of [["add", "ADD"], ["sub", "SUB"], ["mul", "MUL"], ["div", "DIV"]]) {
-  ALU[name] = { op, form: "rr" }; ALU[name + "i"] = { op, form: "ri" }; ALU[name + "a"] = { op, form: "ra" };
-}
-for (const [name, op] of [["and", "AND"], ["or", "OR"], ["xor", "XOR"]]) {
-  ALU[name + "d"] = { op, form: "rr" }; ALU[name + "i"] = { op, form: "ri" }; ALU[name + "a"] = { op, form: "ra" };
-}
-Object.assign(ALU, {
-  cmp: { op: "CMP", form: "rr" }, cmpi: { op: "CMP", form: "ri" }, cmpa: { op: "CMP", form: "ra" },
-  inc: { op: "INC", form: "one" }, dec: { op: "DEC", form: "one" },
-  rtl: { op: "ROL", form: "r" }, rtr: { op: "ROR", form: "r" }, inv: { op: "NOT", form: "r" }, sar: { op: "SAR", form: "r" },
-  shl: { op: "SHL", form: "ri" }, shr: { op: "SHR", form: "ri" },
-});
-const REGISTER_JUMPS = { jz: "A = 0 ?", jnz: "A ≠ 0 ?", je: "A = B ?", ja: "A > B ?", jae: "A ≥ B ?", jb: "A < B ?", jbe: "A ≤ B ?" };
+const ALU_OPS = {
+  add: "ADD", sub: "SUB", mul: "MUL", div: "DIV", and_: "AND", or_: "OR", xor: "XOR", not_: "NOT",
+  shift_left: "SHL", shift_right: "SHR", arithmetic_shift_right: "SAR", rotate_left: "ROL", rotate_right: "ROR", compare: "CMP",
+};
+const JUMP_TESTS = { jz: "= 0", jnz: "≠ 0", je: "=", ja: ">", jae: "≥", jb: "<", jbe: "≤" };
 
+// Built from what the emulator really does: the preview records every call into src/alu.py, so the ALU
+// only lights up when it is used. Moves, stack operations and jumps are done by the decoder directly.
 function datapathModel(next, preview, registers) {
   const m = next.mnemonic;
   const ops = next.operands;
   const writes = preview.registers || {};
   const regSource = (index) => ({ kind: "REG", name: REGISTER_NAMES[index], value: registers[index], width: index >= SP ? 4 : 2 });
-  const immediate = (value, width = 2) => ({ kind: "IMM", value, width });
+  const immediate = (value, width = 2, note = "") => ({ kind: "IMM", value, width, note });
   const memory = (address, width = 2, value = ram[address] ?? 0) => ({ kind: "RAM", address, value, width });
   const targetOperand = ops.find(([kind]) => kind === "a");
-  const model = { a: null, b: null, op: null, flagsRead: false, jumpTest: false };
+  const aluCall = (preview.alu || [])[0];
+  const model = { a: null, b: null, op: null, transfer: false, test: null, flagsRead: false };
 
-  if (ALU[m]) {
-    const { op, form } = ALU[m];
-    model.op = op;
+  if (aluCall) {
+    model.op = ALU_OPS[aluCall.op] || aluCall.op.toUpperCase();
     model.a = regSource(ops[0][1]);
-    if (form === "rr") model.b = regSource(ops[1][1]);
-    else if (form === "ri") model.b = immediate(ops[1][1]);
-    else if (form === "ra") model.b = memory(ops[1][1]);
-    else if (form === "one") model.b = immediate(1);
-  } else if (m in REGISTER_JUMPS) {
-    model.op = REGISTER_JUMPS[m];
-    model.a = regSource(ops[0][1]);
-    model.b = immediate(m === "jz" || m === "jnz" ? 0 : ops[1][1]);
-    model.jumpTest = true;
+    const second = ops[1];
+    if (second && second[0] === "r") model.b = regSource(second[1]);
+    else if (second && second[0] === "a") model.b = memory(second[1]);
+    else if (aluCall.args.length > 1) model.b = immediate(aluCall.args[1], 2, second ? "" : "constant");
+  } else if (m in JUMP_TESTS || m === "jc" || m === "jnc") {
+    const carry = m === "jc" || m === "jnc";
+    const source = regSource(carry ? F : ops[0][1]);
+    let condition;
+    if (carry) condition = `carry ${m === "jc" ? "set" : "clear"} ?`;
+    else if (m === "jz" || m === "jnz") condition = `${source.name} ${JUMP_TESTS[m]} ?`;
+    else condition = `${source.name} ${JUMP_TESTS[m]} ${hex(ops[1][1], 2)} ?`;
+    model.test = { source, condition, taken: preview.jumped };
+    model.flagsRead = carry;
+    if (preview.jumped) {
+      model.b = immediate(targetOperand[1], 4);
+      model.transfer = true;
+    }
   } else {
     switch (m) {
-      case "mov": model.b = regSource(ops[1][1]); model.op = "PASS B"; break;
-      case "mvi": model.b = immediate(ops[1][1]); model.op = "PASS B"; break;
-      case "ld": model.b = memory(ops[1][1]); model.op = "PASS B"; break;
-      case "st": case "push": model.a = regSource(ops[0][1]); model.op = "PASS A"; break;
-      case "pushi": model.b = immediate(ops[0][1]); model.op = "PASS B"; break;
-      case "pusha": model.b = memory(ops[0][1]); model.op = "PASS B"; break;
-      case "pop": model.b = memory(registers[SP]); model.op = "PASS B"; break;
-      case "ret": model.b = memory(registers[SP], 4, preview.next_address); model.op = "PASS B"; break;
-      case "call": case "jmp": model.b = immediate(targetOperand[1], 4); model.op = "PASS B"; break;
-      case "jc": case "jnc":
-        model.b = immediate(targetOperand[1], 4);
-        model.op = m === "jc" ? "PASS B if C" : "PASS B if not C";
-        model.flagsRead = true;
-        break;
+      case "mov": model.b = regSource(ops[1][1]); break;
+      case "mvi": model.b = immediate(ops[1][1]); break;
+      case "ld": model.b = memory(ops[1][1]); break;
+      case "st": case "push": model.b = regSource(ops[0][1]); break;
+      case "pushi": model.b = immediate(ops[0][1]); break;
+      case "pusha": model.b = memory(ops[0][1]); break;
+      case "pop": model.b = memory(registers[SP]); break;
+      case "ret": model.b = memory(registers[SP], 4, preview.next_address); break;
+      case "call": case "jmp": model.b = immediate(targetOperand[1], 4); break;
       default: break; // nop, hlt
     }
+    model.transfer = !!model.b;
   }
 
   model.destinations = Object.entries(writes).filter(([name]) => name !== "F" && name !== "PC")
@@ -529,6 +526,7 @@ function drawDatapath(model, next, registers) {
   if (model) {
     if (model.a && model.a.kind === "REG") slotFor(model.a.name, model.a.width, model.a.value);
     if (model.b && model.b.kind === "REG") slotFor(model.b.name, model.b.width, model.b.value);
+    if (model.test) slotFor(model.test.source.name, model.test.source.width, model.test.source.value);
     for (const d of model.destinations) {
       const slot = slotFor(d.name, d.width, registers[REGISTER_NAMES.indexOf(d.name)]);
       if (slot) slot.write = d.value;
@@ -553,12 +551,13 @@ function drawDatapath(model, next, registers) {
     text(48, slotY(i) + 36, cls("en", written), written ? `write ← ${value(slot.write, slot.width)}` : "write");
   });
 
-  // --- Register bus: every register sits on it; A SEL and the B MUX choose which one to read ---
+  // --- Register bus: every register sits on it; A SEL, the B MUX and the decoder read from it ---
   const bKind = model && model.b ? model.b.kind : null;
   const aLive = !!(model && model.a);
   const bReg = bKind === "REG";
-  const readNames = new Set([aLive ? model.a.name : null, bReg ? model.b.name : null]);
-  const anyRead = aLive || bReg;
+  const testLive = !!(model && model.test);
+  const readNames = new Set([aLive ? model.a.name : null, bReg ? model.b.name : null, testLive ? model.test.source.name : null]);
+  const anyRead = aLive || bReg || testLive;
   const junction = (x, y, live) => add(`<circle class="${cls("junction", live)}" cx="${x}" cy="${y}" r="3.5"/>`);
   slots.forEach((slot, i) => wire(`M164 ${slotMid(i)} H206`, readNames.has(slot.name), " bus"));
   const busTop = Math.min(slotMid(0), 156);
@@ -574,17 +573,25 @@ function drawDatapath(model, next, registers) {
   wire("M206 156 H330", anyRead, " bus");
   wire("M330 156 V186", aLive);
   wire("M330 156 H488 V186", bReg);
+  // Conditional jumps: the decoder reads the register (F for jc/jnc) and compares it itself
+  wire("M330 156 V84 H470 V62", testLive);
   junction(206, 156, anyRead);
   junction(330, 156, anyRead);
   text(214, 150, cls("en", anyRead), "register bus");
+  if (testLive) {
+    const t = model.test;
+    text(338, 78, "en live", `decoder compares ${t.source.name}=${value(t.source.value, t.source.width)}`);
+    text(598, 34, "lv", t.condition);
+    text(598, 50, "en live", t.taken ? "taken" : "not taken");
+  }
 
   // --- A SEL: puts the selected register on the A bus, the ALU's left input ---
   add(`<polygon class="${aLive ? "box act" : "box"}" points="290,190 370,190 356,236 304,236"/>`);
   text(330, 203, cls("mux-in", aLive), aLive ? model.a.name : "REG", "middle");
   text(330, 226, aLive ? "bl" : "bl dim", "A SEL", "middle");
   wire("M330 236 V286", aLive);
-  text(338, 262, cls("lbl", aLive), "A Bus");
-  if (aLive) text(338, 278, "lv", `${model.a.name}=${value(model.a.value, model.a.width)}`);
+  text(338, 268, cls("lbl", aLive), "A Bus");
+  if (aLive) text(338, 282, "lv", `${model.a.name}=${value(model.a.value, model.a.width)}`);
 
   // --- MUX selecting the B bus: from the register bus, the decoder (immediate) or RAM ---
   wire("M515 60 V186", bKind === "IMM");
@@ -611,12 +618,20 @@ function drawDatapath(model, next, registers) {
   text(644, 226, "lv", bKind || "");
 
   const bLive = !!bKind;
-  wire("M515 236 V286", bLive);
-  text(523, 262, cls("lbl", bLive), "B Bus");
+  const aluUsed = !!(model && model.op);
+  const transfer = !!(model && model.transfer);
+  wire("M515 236 V250", bLive, " bus");
+  wire("M515 250 V286", bLive && aluUsed);
+  // Direct transfer: the decoder moves the value itself, around the ALU
+  wire("M515 250 H250 V402", transfer);
+  junction(515, 250, bLive);
+  text(242, 330, cls("en", transfer), "direct", "end");
+  text(242, 344, cls("en", transfer), "transfer", "end");
+  text(523, 268, cls("lbl", bLive), "B Bus");
   if (bLive) {
     const b = model.b;
     const shown = b.kind === "REG" ? `${b.name}=${value(b.value, b.width)}` : b.kind === "RAM" ? `[${value(b.address, 4)}]=${value(b.value, b.width)}` : value(b.value, b.width);
-    text(523, 278, "lv", shown);
+    text(523, 282, "lv", b.note ? `${shown} ${b.note}` : shown);
   }
 
   // --- ALU ---
@@ -641,15 +656,16 @@ function drawDatapath(model, next, registers) {
   text(712, 364, flagsLive ? "en live" : "en", "flags");
 
   // --- Result bus: up the left rail to registers and PC, up the right rail to RAM ---
-  const result = !!(model && (model.destinations.length || ramWrite || pcLoad || model.jumpTest));
-  wire("M440 374 V400", result);
+  const result = !!(model && (model.destinations.length || ramWrite || pcLoad));
+  wire("M440 374 V400", result && aluUsed);
   wire("M14 406 H806", result, " bus");
   let resultText = "";
   if (model) {
-    if (model.jumpTest) resultText = pcLoad ? `taken → ${value(model.pcLoad, 4)}` : "not taken";
-    else if (pcLoad) resultText = value(model.pcLoad, 4);
-    else if (model.destinations.length) resultText = value(model.destinations[0].value, model.destinations[0].width);
+    const main = model.destinations.find((d) => d.name !== "SP");
+    if (pcLoad) resultText = value(model.pcLoad, 4);
+    else if (main) resultText = value(main.value, main.width);
     else if (ramWrite) resultText = value(model.ramWrites[0][1], 2);
+    else if (model.destinations.length) resultText = value(model.destinations[0].value, model.destinations[0].width);
   }
   text(450, 396, cls("lbl", result), "Result Bus");
   text(450, 426, "lv", resultText);

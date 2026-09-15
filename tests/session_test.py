@@ -279,7 +279,8 @@ def test_preview_shows_the_next_instruction_without_running_it():
     assert state["next"]["mnemonic"] == "add"
     assert state["next"]["operands"] == [["r", 0], ["r", 1]]
     assert state["preview"] == {"registers": {"A": 1, "F": 0}, "ram": [], "next_address": 0x1B,
-                                "jumped": False, "halted": False}
+                                "jumped": False, "halted": False,
+                                "alu": [{"op": "add", "args": [0, 1], "result": 1}]}
     assert session.state() == state
 
     call_preview = loaded().run(max_steps=4)["state"]["preview"]  # next: call, next
@@ -287,6 +288,25 @@ def test_preview_shows_the_next_instruction_without_running_it():
     assert call_preview["ram"] == [[0x3FC, 0x0E], [0x3FD, 0x00]]
 
     assert loaded("pop, A").state()["preview"]["error"].startswith("StackUnderflowError")
+
+
+@pytest.mark.parametrize("source, steps, expected_alu", [
+    ("mvi, B, 5\ninc, B\nhlt", 1, [{"op": "add", "args": [5, 1], "result": 6}]),   # inc uses the ALU's add
+    ("mvi, A, 5\ncmpi, A, 7\nhlt", 1, [{"op": "compare", "args": [5, 7], "result": None}]),
+    ("mvi, B, 0b0110\nshl, B, 1\nhlt", 1, [{"op": "shift_left", "args": [6, 1], "result": 12}]),
+    ("mvi, B, 7\nmov, C, B\nhlt", 1, []),                                          # moves bypass the ALU
+    ("mvi, C, 1\njnz, C, end\nend: hlt", 1, []),                                   # the decoder compares
+    ("pushi, 3\npop, A\nhlt", 1, []),
+    ("call, sub\nhlt\nsub: ret", 0, []),
+])
+def test_preview_records_exactly_which_alu_operations_run(source, steps, expected_alu):
+    session = loaded(source)
+    for _ in range(steps):
+        session.step()
+    preview = session.state()["preview"]
+    assert preview["alu"] == expected_alu
+    # recording is temporary: the CPU keeps its real ALU
+    assert type(session.cpu.alu).__name__ == "ALU"
 
 
 def test_dashboard_manifest_lists_every_module_and_example():
