@@ -16,6 +16,7 @@ class CPU:
         self.cycles = 0           # instructions executed since creation or the last reset
         self.breakpoints = set()  # addresses where run_until stops before executing
         self.output = []          # text printed by out/outc, one string per printing instruction
+        self.ram.cycle_source = lambda: self.cycles
 
         self.registers.write(Registers.SP, self.ram.size - 1)
 
@@ -76,7 +77,7 @@ class CPU:
             for reg, old in register_log.items():
                 self.registers.registers[reg] = old
             for addr, old in ram_log.items():
-                self.ram.memory[addr] = old
+                self.ram.poke(addr, old)
             del self.output[output_count:]
             raise
         finally:
@@ -88,7 +89,7 @@ class CPU:
             instruction=instruction,
             register_writes={reg: (old, self.registers.registers[reg])
                              for reg, old in sorted(register_log.items()) if reg != Registers.PC},
-            ram_writes={addr: (old, self.ram.memory[addr]) for addr, old in sorted(ram_log.items())},
+            ram_writes={addr: (old, self.ram.peek(addr)) for addr, old in sorted(ram_log.items())},
             next_address=self.registers.read(Registers.PC),
             halted=self.halted,
             output="".join(self.output[output_count:]),
@@ -101,17 +102,18 @@ class CPU:
         for reg, (old, _) in record.register_writes.items():
             self.registers.registers[reg] = old
         for address, (old, _) in record.ram_writes.items():
-            self.ram.memory[address] = old
+            self.ram.poke(address, old)
         self.registers.registers[Registers.PC] = record.address
         self.halted = False
         self.cycles -= 1
         if record.output:
             self.output.pop()
 
-    def run_until(self, max_steps=100_000, on_step=None):
+    def run_until(self, max_steps=100_000, on_step=None, stop_at_frame=False):
         """
         Step until the CPU halts, reaches a breakpoint, or has executed max_steps instructions.
-        on_step, if given, is called with each StepRecord.
+        on_step, if given, is called with each StepRecord. With stop_at_frame, a `frame` instruction
+        also ends the run (reason StopReason.FRAME), so a host can pace games to its frame rate.
 
         A breakpoint stops execution before its instruction runs. The instruction a run starts
         on always executes, so calling run_until again continues past the breakpoint.
@@ -126,6 +128,8 @@ class CPU:
             steps += 1
             if on_step is not None:
                 on_step(record)
+            if stop_at_frame and record.instruction.mnemonic == "frame":
+                return RunResult(StopReason.FRAME, steps)
         return RunResult(StopReason.HALTED, steps)
 
     def snapshot(self):
@@ -133,7 +137,7 @@ class CPU:
         Capture registers, RAM, halt state and cycle count.
         """
         return Snapshot(tuple(self.registers.registers), tuple(self.ram.memory), self.halted, self.cycles,
-                        tuple(self.output))
+                        tuple(self.output), tuple(self.ram.screen))
 
     def restore(self, snapshot):
         """
@@ -146,6 +150,8 @@ class CPU:
         self.halted = snapshot.halted
         self.cycles = snapshot.cycles
         self.output[:] = snapshot.output
+        if snapshot.screen:
+            self.ram.screen[:] = snapshot.screen
 
     def reset(self):
         """
@@ -157,3 +163,4 @@ class CPU:
         self.halted = False
         self.cycles = 0
         self.output.clear()
+        self.ram.screen[:] = [0] * len(self.ram.screen)

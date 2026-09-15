@@ -13,6 +13,12 @@ const DUMP_ROWS = 8;
 const STACK_ROWS = 8;
 const DEFAULT_EXAMPLE = "fibonacci.asm";
 const NEW_PROGRAM = "; new program\n\n        hlt\n";
+const SCREEN_SIZE = 32;
+const SCREEN_BASE = 0xF000;
+const KEYS_ADDRESS = 0xFF00;
+// The display is hardware, so its colors don't change with the theme: black, red, brass, white
+const PALETTE = [[13, 14, 12], [222, 91, 67], [214, 156, 76], [231, 226, 212]];
+const KEY_BITS = { ArrowUp: 1, ArrowDown: 2, ArrowLeft: 4, ArrowRight: 8, " ": 16 };
 
 const $ = (id) => document.getElementById(id);
 const el = {
@@ -28,7 +34,7 @@ const el = {
   programName: $("programName"), progNew: $("prog-new"), progDuplicate: $("prog-duplicate"),
   progOpen: $("prog-open"), progDownload: $("prog-download"), progDelete: $("prog-delete"), progFile: $("prog-file"),
   progShare: $("prog-share"), themeToggle: $("themeToggle"), examplesGallery: $("examplesGallery"),
-  output: $("output"), outputMeta: $("outputMeta"),
+  output: $("output"), outputMeta: $("outputMeta"), screen: $("screen"), keypad: $("keypad"),
 };
 
 // ---------- Per-viewer storage (best effort) ----------
@@ -50,6 +56,8 @@ let fatal = null;
 let commandError = null;
 let commandErrorTimer = null;
 let commandNotice = null;
+let keysMask = 0;
+let screenBytes = new Uint8Array(SCREEN_SIZE * SCREEN_SIZE);
 let running = false;
 let state = null;
 let ram = new Uint8Array(1024);
@@ -423,11 +431,38 @@ function render() {
   renderTransport();
   renderRegisters();
   renderOutput();
+  renderDisplay();
   renderDataPath();
   renderMemory();
   renderTrace();
   renderMarks();
   renderStatus();
+}
+
+function renderDisplay() {
+  screenBytes = state && state.screen ? decodeBase64(state.screen) : new Uint8Array(SCREEN_SIZE * SCREEN_SIZE);
+  const ctx = el.screen.getContext("2d");
+  const image = ctx.createImageData(SCREEN_SIZE, SCREEN_SIZE);
+  for (let i = 0; i < screenBytes.length; i++) {
+    const [r, g, b] = PALETTE[screenBytes[i] & 3];
+    image.data[i * 4] = r;
+    image.data[i * 4 + 1] = g;
+    image.data[i * 4 + 2] = b;
+    image.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(image, 0, 0);
+  renderKeys();
+}
+
+function renderKeys() {
+  for (const lamp of el.keypad.children) lamp.classList.toggle("on", !!(keysMask & Number(lamp.dataset.bit)));
+}
+
+function setKeys(mask) {
+  if (mask === keysMask) return;
+  keysMask = mask;
+  renderKeys();
+  if (ready) send("set_keys", { mask });
 }
 
 function renderOutput() {
@@ -520,7 +555,7 @@ function datapathModel(next, preview, registers) {
   const writes = preview.registers || {};
   const regSource = (index) => ({ kind: "REG", name: REGISTER_NAMES[index], value: registers[index], width: index >= SP ? 4 : 2 });
   const immediate = (value, width = 2, note = "") => ({ kind: "IMM", value, width, note });
-  const memory = (address, width = 2, value = ram[address] ?? 0) => ({ kind: "RAM", address, value, width });
+  const memory = (address, width = 2, value = readByte(address)) => ({ kind: "RAM", address, value, width });
   const targetOperand = ops.find(([kind]) => kind === "a");
   const aluCall = (preview.alu || [])[0];
   const model = { a: null, b: null, op: null, transfer: false, test: null, flagsRead: false };
@@ -557,6 +592,8 @@ function datapathModel(next, preview, registers) {
       case "ret": model.b = memory(registers[SP], 4, preview.next_address); break;
       case "call": case "jmp": model.b = immediate(targetOperand[1], 4); break;
       case "out": case "outc": model.b = regSource(ops[0][1]); break;
+      case "ldx": model.b = memory((registers[REGISTER_NAMES.indexOf("X")] << 8) | registers[REGISTER_NAMES.indexOf("Y")]); break;
+      case "stx": model.b = regSource(ops[0][1]); break;
       default: break; // nop, hlt
     }
     model.transfer = !!model.b;
@@ -796,6 +833,13 @@ function renderDataPath() {
 }
 
 // ---------- Memory ----------
+function readByte(address) {
+  if (address < ram.length) return ram[address];
+  if (address >= SCREEN_BASE && address < SCREEN_BASE + SCREEN_SIZE * SCREEN_SIZE) return screenBytes[address - SCREEN_BASE];
+  if (address === KEYS_ADDRESS) return state ? state.keys : 0;
+  return 0;
+}
+
 function memoryMarks() {
   const size = state ? state.memory.size : ram.length;
   const sp = state ? state.registers[SP] : size - 1;
@@ -1300,7 +1344,7 @@ function wireTabs(tabs, onChange) {
   }
 }
 wireTabs([["tab-ram", "pane-ram"], ["tab-rom", "pane-rom"]]);
-const execTabs = [["tab-path", "pane-path"], ["tab-trace", "pane-trace"], ["tab-output", "pane-output"]];
+const execTabs = [["tab-path", "pane-path"], ["tab-trace", "pane-trace"], ["tab-output", "pane-output"], ["tab-display", "pane-display"]];
 function execTabChanged(tab) {
   const trace = tab === "tab-trace";
   const output = tab === "tab-output";
@@ -1314,6 +1358,30 @@ function execTabChanged(tab) {
     $("tab-output").classList.remove("unseen");
     el.output.scrollTop = el.output.scrollHeight;
   }
+  if (tab === "tab-display") el.screen.focus();
+}
+
+// Keys: arrows and space while the display has focus, or press and hold the key buttons
+el.screen.addEventListener("keydown", (event) => {
+  const bit = KEY_BITS[event.key];
+  if (bit === undefined) return;
+  event.preventDefault();
+  setKeys(keysMask | bit);
+});
+el.screen.addEventListener("keyup", (event) => {
+  const bit = KEY_BITS[event.key];
+  if (bit === undefined) return;
+  event.preventDefault();
+  setKeys(keysMask & ~bit);
+});
+el.screen.addEventListener("blur", () => setKeys(0));
+el.screen.addEventListener("pointerdown", () => el.screen.focus());
+for (const lamp of el.keypad.children) {
+  const bit = Number(lamp.dataset.bit);
+  const release = () => setKeys(keysMask & ~bit);
+  lamp.addEventListener("pointerdown", (event) => { event.preventDefault(); lamp.setPointerCapture(event.pointerId); setKeys(keysMask | bit); });
+  lamp.addEventListener("pointerup", release);
+  lamp.addEventListener("pointercancel", release);
 }
 wireTabs(execTabs, execTabChanged);
 

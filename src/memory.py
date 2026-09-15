@@ -1,3 +1,23 @@
+"""
+ROM holds the program; RAM holds data, the stack and the memory-mapped devices.
+
+16-bit address space:
+    0000-EFFF  RAM (as much as the chosen size allows)
+    F000-F3FF  screen: 32 x 32 pixels, one byte per pixel, colors 0-3, row by row
+    FF00       keys, read-only: bit 0 up, 1 down, 2 left, 3 right, 4 fire
+    FF01       random byte, read-only
+"""
+
+DEVICE_BASE = 0xF000
+SCREEN_BASE = 0xF000
+SCREEN_WIDTH = 32
+SCREEN_HEIGHT = 32
+SCREEN_END = SCREEN_BASE + SCREEN_WIDTH * SCREEN_HEIGHT
+KEYS = 0xFF00
+RANDOM = 0xFF01
+KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_FIRE = 0x01, 0x02, 0x04, 0x08, 0x10
+
+
 class ROM:
     def __init__(self, size, content=None):
         if size is None:
@@ -19,28 +39,72 @@ class ROM:
         raise RuntimeError("Cannot write to a ROM.")
 
 
+def random_byte(cycle, address=RANDOM):
+    """
+    A pseudo-random byte that depends only on the cycle count, so Back and rewind replay it exactly.
+    """
+    x = (cycle * 2654435761 + address * 40503) & 0xFFFFFFFF
+    x ^= x >> 15
+    x = (x * 2246822519) & 0xFFFFFFFF
+    x ^= x >> 13
+    return x & 0xFF
+
 
 class RAM:
     def __init__(self, size, bit_width=8):
         self.bit_width = bit_width
-        self.size = size
-        self.memory = [0] * size
+        # The top of the address space belongs to the devices, so RAM stops below DEVICE_BASE.
+        self.size = min(size, DEVICE_BASE)
+        self.memory = [0] * self.size
+        self.screen = [0] * (SCREEN_WIDTH * SCREEN_HEIGHT)
+        self.keys = 0                   # keys currently held, set by the dashboard
+        self.cycle_source = lambda: 0   # the CPU connects its cycle counter, used by RANDOM
         # When set to a dict, write() records each address's value before its first write.
         self.write_log = None
 
     def read(self, address):
         if 0 <= address < self.size:
             return self.memory[address]
-        else:
-            raise IndexError(f"Address {address} out of bounds for RAM of size {self.size}")
+        if SCREEN_BASE <= address < SCREEN_END:
+            return self.screen[address - SCREEN_BASE]
+        if address == KEYS:
+            return self.keys
+        if address == RANDOM:
+            return random_byte(self.cycle_source(), address)
+        raise IndexError(self._out_of_bounds(address))
 
     def write(self, address, value):
+        if address in (KEYS, RANDOM):
+            device = "keys" if address == KEYS else "random"
+            raise IndexError(f"Address {address:04X} ({device}) is read-only")
+        old = self.peek(address)
+        if self.write_log is not None and address not in self.write_log:
+            self.write_log[address] = old
+        self.poke(address, value)
+
+    def peek(self, address):
+        """
+        Read a RAM or screen byte (not the input devices).
+        """
         if 0 <= address < self.size:
-            if self.write_log is not None and address not in self.write_log:
-                self.write_log[address] = self.memory[address]
+            return self.memory[address]
+        if SCREEN_BASE <= address < SCREEN_END:
+            return self.screen[address - SCREEN_BASE]
+        raise IndexError(self._out_of_bounds(address))
+
+    def poke(self, address, value):
+        """
+        Set a RAM or screen byte without logging it (used when undoing).
+        """
+        if 0 <= address < self.size:
             self.memory[address] = value
+        elif SCREEN_BASE <= address < SCREEN_END:
+            self.screen[address - SCREEN_BASE] = value
         else:
-            raise IndexError(f"Address {address} out of bounds for RAM of size {self.size}")
+            raise IndexError(self._out_of_bounds(address))
+
+    def _out_of_bounds(self, address):
+        return f"Address {address} out of bounds for RAM of size {self.size}"
 
     def read_word(self, address):
         """

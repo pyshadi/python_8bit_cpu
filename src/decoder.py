@@ -79,6 +79,11 @@ class Decoder:
             0x35: self.out,
             0x36: self.outc,
 
+            0x37: self.ldx,
+            0x38: self.stx,
+            0x39: self.inxy,
+            0x3a: self.frame,
+
             0xff: self.hlt,
         }
 
@@ -310,6 +315,30 @@ class Decoder:
         """outc, reg: print the register's value as a character (e.g. 72 prints H)."""
         _, value = self._reg()
         self.cpu.output.append(chr(value))
+
+    # --- Addresses held in X:Y, and frames ------------------------------------------
+
+    def _xy(self):
+        return (self.cpu.registers.read(Registers.X) << 8) | self.cpu.registers.read(Registers.Y)
+
+    def ldx(self):
+        """ldx, reg: load the byte at the address held in X:Y (X is the high byte)."""
+        reg = self.cpu.fetch_byte()
+        self._write(reg, self.cpu.ram.read(self._xy()))
+
+    def stx(self):
+        """stx, reg: store the register at the address held in X:Y."""
+        _, value = self._reg()
+        self.cpu.ram.write(self._xy(), value)
+
+    def inxy(self):
+        """inxy: add 1 to the 16-bit address in X:Y."""
+        address = (self._xy() + 1) & 0xFFFF
+        self._write(Registers.X, address >> 8)
+        self._write(Registers.Y, address & 0xFF)
+
+    def frame(self):
+        """frame: end of a frame. At full speed the dashboard waits here until the next 1/30 second."""
 
     # --- Compare (sets flags in F only) ------------------------------------------
 

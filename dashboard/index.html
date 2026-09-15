@@ -88,17 +88,24 @@
   .module-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px 9px; border-bottom: 1px solid var(--line-soft); }
   .module-head .meta { font-size: 11px; color: var(--ink-3); }
 
-  .module.transport { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 7px 10px 7px 14px; min-height: 50px; }
+  .module.transport { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 7px 10px 7px 14px; min-height: 50px; }
+  /* One row whenever there is room: the clock slider gives up width before anything wraps */
+  @media (min-width: 1080px) {
+    .module.transport { flex-wrap: nowrap; }
+    .module.transport > * { flex-shrink: 0; }
+    .module.transport > .clock { flex-shrink: 1; min-width: 0; }
+    .clock input { width: 130px; min-width: 56px; flex: 0 1 130px; }
+  }
   .sep { align-self: stretch; width: 1px; background: var(--line-soft); }
   .file { display: flex; align-items: center; gap: 10px; }
   select { height: 32px; background: var(--raised); border: 1px solid var(--line); border-radius: 3px; padding: 0 28px 0 10px; font-family: var(--f-mono); font-stretch: 87.5%; font-size: 12.5px; }
   .keys { display: flex; gap: 6px; }
-  .key { display: inline-flex; align-items: center; justify-content: center; height: 32px; min-width: 70px; padding: 0 12px; background: var(--key); border: 1px solid var(--line); border-radius: 3px; box-shadow: var(--bevel), 0 1px 0 rgba(0, 0, 0, 0.25); cursor: pointer; font-family: var(--f-label); font-weight: 600; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; }
+  .key { display: inline-flex; align-items: center; justify-content: center; height: 32px; min-width: 62px; padding: 0 10px; background: var(--key); border: 1px solid var(--line); border-radius: 3px; box-shadow: var(--bevel), 0 1px 0 rgba(0, 0, 0, 0.25); cursor: pointer; font-family: var(--f-label); font-weight: 600; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; }
   .key:hover:not([disabled]) { border-color: var(--ink-3); }
   .key:active:not([disabled]) { transform: translateY(1px); box-shadow: var(--bevel); }
   .key[disabled] { opacity: 0.4; cursor: not-allowed; }
   .key.primary { border-color: var(--brass); color: var(--brass); }
-  .lamps { display: flex; gap: 14px; }
+  .lamps { display: flex; gap: 11px; }
   .lamp { display: flex; align-items: center; gap: 7px; }
   .lamp i { display: block; width: 10px; height: 10px; border-radius: 50%; background: var(--lamp-off); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35); }
   .lamp.on i { background: var(--brass); box-shadow: var(--brass-glow); }
@@ -287,6 +294,15 @@
   .output { margin: 0; padding: 12px 14px; height: 440px; overflow: auto; font-family: var(--f-mono); font-stretch: 87.5%; font-size: 14px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); }
   .output:empty::before { content: "—"; color: var(--ink-3); }
 
+  /* Display */
+  .display-wrap { display: grid; justify-items: center; align-content: start; gap: 14px; padding: 18px 14px; min-height: 440px; }
+  #screen { width: min(100%, 384px); aspect-ratio: 1; height: auto; image-rendering: pixelated; background: #0d0e0c; border: 1px solid var(--line); border-radius: 2px; cursor: crosshair; }
+  #screen:focus-visible, #screen:focus { outline: 2px solid var(--brass); outline-offset: 3px; }
+  .keypad { display: flex; gap: 6px; }
+  .key-lamp { min-width: 40px; height: 30px; padding: 0 8px; background: var(--key); border: 1px solid var(--line); border-radius: 3px; box-shadow: var(--bevel); color: var(--ink-2); font-family: var(--f-label); font-weight: 600; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; touch-action: none; }
+  .key-lamp.wide { min-width: 64px; }
+  .key-lamp.on { background: var(--brass); border-color: var(--brass); color: var(--ground); box-shadow: var(--brass-glow); }
+
   /* Examples gallery */
   .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
   .gallery .card { border: 1px solid var(--line); border-radius: 3px; background: var(--panel); padding: 14px; display: grid; gap: 8px; align-content: start; }
@@ -431,6 +447,7 @@
             <button class="subtab" role="tab" type="button" id="tab-path" aria-controls="pane-path" aria-selected="true"><span class="engrave">Data path</span></button>
             <button class="subtab" role="tab" type="button" id="tab-trace" aria-controls="pane-trace" aria-selected="false"><span class="engrave">Trace</span></button>
             <button class="subtab" role="tab" type="button" id="tab-output" aria-controls="pane-output" aria-selected="false"><span class="engrave">Output</span><i class="dot" aria-hidden="true"></i></button>
+            <button class="subtab" role="tab" type="button" id="tab-display" aria-controls="pane-display" aria-selected="false"><span class="engrave">Display</span></button>
           </div>
           <span class="meta mono path-meta" id="pathMeta"></span>
           <div class="segmented" id="traceFilters" role="group" aria-label="Show" hidden>
@@ -454,6 +471,18 @@
         </div>
         <div id="pane-output" role="tabpanel" aria-labelledby="tab-output" hidden>
           <pre id="output" class="output" aria-live="polite" aria-label="Program output"></pre>
+        </div>
+        <div id="pane-display" role="tabpanel" aria-labelledby="tab-display" hidden>
+          <div class="display-wrap">
+            <canvas id="screen" width="32" height="32" tabindex="0" aria-label="32 by 32 pixel display. While it has focus, the arrow keys and space are sent to the program."></canvas>
+            <div class="keypad" id="keypad" aria-label="Keys held">
+              <button class="key-lamp" type="button" data-bit="4" aria-label="Left">←</button>
+              <button class="key-lamp" type="button" data-bit="1" aria-label="Up">↑</button>
+              <button class="key-lamp" type="button" data-bit="2" aria-label="Down">↓</button>
+              <button class="key-lamp" type="button" data-bit="8" aria-label="Right">→</button>
+              <button class="key-lamp wide" type="button" data-bit="16" aria-label="Fire">Fire</button>
+            </div>
+          </div>
         </div>
       </div>
       </div>
@@ -503,6 +532,7 @@
         <a href="#m-start">Getting started</a>
         <a href="#m-programs">Programs</a>
         <a href="#m-examples">Examples</a>
+        <a href="#m-hardware">Screen and keys</a>
         <a href="#m-controls">Controls</a>
         <a href="#m-colors">Lamps and colors</a>
         <a href="#m-panels">Panels</a>
@@ -546,6 +576,33 @@
           <h2>Examples</h2>
           <p class="muted">Example programs from the repository. Open one to step through it; typing in it saves your own copy.</p>
           <div class="gallery" id="examplesGallery"></div>
+        </section>
+
+        <section id="m-hardware">
+          <h2>Screen, keys and memory map</h2>
+          <p class="muted">The top of the 16-bit address space belongs to devices, so they work whatever RAM size you choose. Programs draw by writing bytes into screen memory, and read the keyboard and random numbers from fixed addresses.</p>
+          <div class="tablewrap">
+            <table class="doc">
+              <thead><tr><th>Address</th><th>Device</th><th>Use</th></tr></thead>
+              <tbody>
+                <tr><td><code>0000–EFFF</code></td><td>RAM</td><td class="soft">As much as the RAM setting allows (60 KB when 64 KB is chosen). The stack starts at the top of RAM.</td></tr>
+                <tr><td><code>F000–F3FF</code></td><td>Screen</td><td class="soft">32 × 32 pixels, one byte each, row by row: the pixel at column x, row y is at <code>F000 + y × 32 + x</code>. Colors: 0 black, 1 red, 2 brass, 3 white. Shown in the Display tab.</td></tr>
+                <tr><td><code>FF00</code></td><td>Keys</td><td class="soft">Read-only. Add up the keys held: 1 up, 2 down, 4 left, 8 right, 16 fire (space). Click the display, then press keys, or press and hold the buttons under it.</td></tr>
+                <tr><td><code>FF01</code></td><td>Random</td><td class="soft">Read-only. A different byte on every instruction; rewinding replays exactly the same numbers.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="tablewrap">
+            <table class="doc">
+              <thead><tr><th>Instruction</th><th>What it does</th></tr></thead>
+              <tbody>
+                <tr><td><code>ldx, R</code></td><td class="soft">Loads R from the address held in X:Y (X is the high byte, Y the low byte).</td></tr>
+                <tr><td><code>stx, R</code></td><td class="soft">Stores R at the address held in X:Y. With X:Y pointing into the screen, this draws a pixel.</td></tr>
+                <tr><td><code>inxy</code></td><td class="soft">Adds 1 to the 16-bit address in X:Y, to move to the next byte or pixel.</td></tr>
+                <tr><td><code>frame</code></td><td class="soft">Marks the end of a frame. At max clock speed the machine waits here until the next 1/30 second, so games run at a steady speed; at other speeds it does nothing.</td></tr>
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section id="m-controls">
@@ -604,6 +661,7 @@
                 <tr><td>Source</td><td class="soft">Columns from left: breakpoint, line number, address of the instruction on that line, code. The highlighted line is the next instruction to run.</td></tr>
                 <tr><td>Registers</td><td class="soft">Each 8-bit register shows hex, decimal and eight bit lamps (most significant on the left). PC and SP are 16-bit. F shows the four flags.</td></tr>
                 <tr><td>Output</td><td class="soft">The Output tab, after Trace, shows everything the program prints; a dot on the tab means there is new output you haven't seen. <code>out, A</code> prints A as a decimal number on its own line; <code>outc, A</code> prints A as a character (72 is H, 10 starts a new line). Reset clears it, and Back undoes printing along with everything else.</td></tr>
+                <tr><td>Display</td><td class="soft">The 32 × 32 pixel screen at <code>F000–F3FF</code>, with the keys currently held lit underneath. Click the screen to send the arrow keys and space to the program. See Screen and keys.</td></tr>
                 <tr><td>Data path</td><td class="soft">What the next instruction will do before it runs, following what the emulator's code actually does. Registers sit on the register bus; A SEL and the MUX pick the ALU's inputs. The ALU lights up only when the instruction uses it (arithmetic, logic, shifts, rotations, compares, <code>inc</code> and <code>dec</code>). Moves, stack operations, <code>call</code>, <code>ret</code> and <code>jmp</code> take the <b>direct transfer</b> path around the ALU. Conditional jumps show the decoder comparing a register (or the carry flag) and whether the jump is taken. The values on the lit wires are the ones the instruction will read and write. If it would fail, the panel heading says why.</td></tr>
                 <tr><td>Memory: map</td><td class="soft">One square per RAM byte, starting at 0000 in the top left: 64 bytes per row for 1 KB and 4 KB, 256 per row for 64 KB. Dark squares are zero, grey squares hold data, patina squares are the stack in use, brass squares are return addresses pushed by <code>call</code>, and bright squares were written by the last instruction. Click a square to show that address.</td></tr>
                 <tr><td>Memory: dump</td><td class="soft">Eight rows of RAM around SP (outlined in brass). Type an address (<code>0x0100</code>, <code>256</code>) or a label and press Enter to show that area instead; Follow SP returns to the stack. Click a byte to select it.</td></tr>
@@ -632,6 +690,7 @@
             <div><h3>Jump</h3><dl><dt>jmp · jc · jnc</dt><dd>mem</dd><dt>jz · jnz</dt><dd>reg, mem</dd><dt>je · ja · jae · jb · jbe</dt><dd>reg, imm, mem</dd></dl></div>
             <div><h3>Stack and control</h3><dl><dt>push · pop</dt><dd>reg</dd><dt>pushi</dt><dd>imm</dd><dt>pusha</dt><dd>mem</dd><dt>call</dt><dd>mem</dd><dt>ret · hlt · nop</dt><dd>none</dd></dl></div>
             <div><h3>Output</h3><dl><dt>out</dt><dd>reg · number + new line</dd><dt>outc</dt><dd>reg · character</dd></dl></div>
+            <div><h3>Addresses in X:Y and frames</h3><dl><dt>ldx · stx</dt><dd>reg</dd><dt>inxy</dt><dd>none</dd><dt>frame</dt><dd>none</dd></dl></div>
           </div>
         </section>
       </div>
