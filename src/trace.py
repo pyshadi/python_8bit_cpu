@@ -31,6 +31,7 @@ class StopReason:
     HALTED = "halted"
     BREAKPOINT = "breakpoint"
     STEP_LIMIT = "step_limit"
+    FRAME = "frame"
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,7 @@ class Snapshot:
     halted: bool
     cycles: int
     output: Tuple[str, ...] = ()
+    screen: Tuple[int, ...] = ()
 
 
 # --- Formatting ------------------------------------------------------------------
@@ -76,6 +78,8 @@ def format_effect(record, labels=None):
         parts.append(f"PC ← {target}")
     if record.output:
         parts.append(f"output {record.output!r}")
+    if record.instruction.mnemonic == "frame":
+        parts.append("end of frame")
     if record.halted:
         parts.append("halted")
     return " · ".join(parts)

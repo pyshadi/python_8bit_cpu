@@ -201,6 +201,12 @@ Registers (<code>reg</code>, <code>D</code>, <code>S</code>) and immediate value
 | SAR | 0x34 | D | Arithmetic shift Destination register right by one bit, keeping the sign bit |
 | OUT | 0x35 | reg | Print the register's value as a decimal number on its own line |
 | OUTC | 0x36 | reg | Print the register's value as a character (72 prints H) |
+| LDX | 0x37 | reg | Load the register from the address held in X:Y (X is the high byte) |
+| STX | 0x38 | reg | Store the register at the address held in X:Y |
+| INXY | 0x39 | None | Add 1 to the 16-bit address in X:Y |
+| FRAME | 0x3A | None | End of a frame; at full speed the dashboard waits for the next 1/30 s |
+
+Memory map: RAM from <code>0000</code> (up to <code>EFFF</code>), a 32×32 screen at <code>F000–F3FF</code> (one byte per pixel, colors 0–3), keys at <code>FF00</code> (1 up, 2 down, 4 left, 8 right, 16 fire) and a random byte at <code>FF01</code>. The dashboard shows the screen in its Display tab.
 
 ### Control Transfer Instructions
 | Mnemonic | Opcode | Operands | Description |

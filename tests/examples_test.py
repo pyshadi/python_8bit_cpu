@@ -20,6 +20,7 @@ EXPECTED = {
     "swap.asm": lambda cpu: (cpu.registers.read(Registers.B), cpu.registers.read(Registers.C)) == (42, 7),
     "fibonacci.asm": lambda cpu: [cpu.ram.read(a) for a in range(0x3F5, 0x3FF)] == [55, 34, 21, 13, 8, 5, 3, 2, 1, 1],
     "multiply.asm": lambda cpu: cpu.registers.read(Registers.D) == 42 and cpu.ram.read(0x0100) == 42,
+    "pattern.asm": lambda cpu: [cpu.ram.screen[i] for i in (0, 1, 2, 3, 33, 31 * 32 + 31)] == [0, 1, 2, 3, 2, 2],
 }
 
 
@@ -32,12 +33,27 @@ EXPECTED_OUTPUT = {
     "gcd.asm": "6\n",
     "hello.asm": "HELLO\n1\n2\n3\n",
     "multiply.asm": "42\n",
+    "pattern.asm": "",
     "swap.asm": "42\n7\n",
 }
 
 
+# Interactive examples never halt: they run frame after frame. Each entry checks the screen after one frame.
+INTERACTIVE = {
+    "keys.asm": lambda cpu: cpu.ram.screen[16 * 32 + 16] == 2,
+}
+
+
 def test_every_example_has_an_expectation():
-    assert sorted(p.name for p in EXAMPLES.glob("*.asm")) == sorted(EXPECTED)
+    assert sorted(p.name for p in EXAMPLES.glob("*.asm")) == sorted([*EXPECTED, *INTERACTIVE])
+
+
+@pytest.mark.parametrize("name", sorted(INTERACTIVE))
+def test_interactive_example_draws_a_frame(name):
+    code = Assembler.assemble((EXAMPLES / name).read_text())
+    cpu = CPU(ROM(len(code), code), RAM(1024))
+    assert cpu.run_until(max_steps=10_000, stop_at_frame=True).reason == StopReason.FRAME
+    assert INTERACTIVE[name](cpu)
 
 
 @pytest.mark.parametrize("name", sorted(EXPECTED))

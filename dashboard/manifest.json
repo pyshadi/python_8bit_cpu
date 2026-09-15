@@ -19,7 +19,9 @@
     "fibonacci.asm",
     "gcd.asm",
     "hello.asm",
+    "keys.asm",
     "multiply.asm",
+    "pattern.asm",
     "swap.asm"
   ]
 }

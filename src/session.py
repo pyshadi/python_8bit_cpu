@@ -12,7 +12,7 @@ from collections import deque
 from src.assembler import Assembler, AssemblerError
 from src.cpu import CPU
 from src.disassembler import DisassemblerError, disassemble
-from src.memory import ROM, RAM
+from src.memory import DEVICE_BASE, ROM, RAM, SCREEN_BASE, SCREEN_END
 from src.registers import Registers
 from src.trace import StopReason, format_effect
 
@@ -64,6 +64,7 @@ class Session:
         self.written = []                   # register names written by the last instruction
         self.last_ram_writes = []           # RAM addresses written by the last instruction
         self.return_cells = set()           # RAM addresses holding bytes pushed by call
+        self.keys = 0                       # keys held on the dashboard, kept across loads
         # ("step", StepRecord, return cells before or None) or ("edit", "register" | "ram", where, old value)
         self._history = deque(maxlen=HISTORY_LIMIT)
         self._clear_recent()
@@ -83,6 +84,7 @@ class Session:
             "rewind": self.rewind,
             "poke_register": self.poke_register,
             "poke_ram": self.poke_ram,
+            "set_keys": self.set_keys,
             "state": self._result,
         }
         if name not in handlers:
@@ -113,6 +115,7 @@ class Session:
             self.labels.setdefault(address, name)
         code = program.bytecode
         self.cpu = CPU(ROM(max(len(code), 1), code), RAM(self.ram_size))
+        self.cpu.ram.keys = self.keys
         self.status, self.error = "ready", None
         self._apply_breakpoints(breakpoints)
         return self._result(clear_trace=True)
@@ -135,9 +138,10 @@ class Session:
         self.status = "halted" if record.halted else "paused"
         return self._result(stopped=record.halted)
 
-    def run(self, max_steps=100_000, quiet=False):
+    def run(self, max_steps=100_000, quiet=False, stop_at_frame=False):
         """
         Run up to max_steps instructions, stopping early at a breakpoint, hlt or an error.
+        With stop_at_frame, a `frame` instruction also ends the run and the result has "frame": True.
         With quiet=True only {"stopped", "status"} is returned; the trace is kept for the next full result.
         """
         if not self._can_run():
@@ -151,7 +155,7 @@ class Session:
             current[0] = record.next_address
 
         try:
-            result = self.cpu.run_until(max_steps=max_steps, on_step=on_step)
+            result = self.cpu.run_until(max_steps=max_steps, on_step=on_step, stop_at_frame=stop_at_frame)
         except Exception as e:
             self._runtime_error(current[0], e)
             return self._quiet(True) if quiet else self._result(stopped=True)
@@ -159,8 +163,9 @@ class Session:
         if last[0] is not None:
             self._remember_last(last[0])
         self.status = {StopReason.HALTED: "halted", StopReason.BREAKPOINT: "break"}.get(result.reason, "paused")
-        stopped = result.reason != StopReason.STEP_LIMIT
-        return self._quiet(stopped) if quiet else self._result(stopped=stopped)
+        frame = result.reason == StopReason.FRAME
+        stopped = result.reason not in (StopReason.STEP_LIMIT, StopReason.FRAME)
+        return self._quiet(stopped, frame) if quiet else self._result(stopped=stopped, frame=frame)
 
     def reset(self):
         if self.cpu is not None:
@@ -220,13 +225,26 @@ class Session:
         if self.cpu is None:
             raise ValueError("load a program before editing values")
         address, value = int(address), int(value)
-        if not 0 <= address < self.ram_size:
-            raise ValueError(f"address 0x{address:04X} is outside {self.ram_size} bytes of RAM")
+        ram = self.cpu.ram
+        if not (0 <= address < ram.size or SCREEN_BASE <= address < SCREEN_END):
+            raise ValueError(f"address 0x{address:04X} is outside {ram.size} bytes of RAM")
         if not 0 <= value <= 0xFF:
             raise ValueError(f"RAM bytes must be between 0 and 255 (0xFF), got {value}")
-        self._history.append(("edit", "ram", address, self.cpu.ram.memory[address]))
-        self.cpu.ram.memory[address] = value
+        self._history.append(("edit", "ram", address, ram.peek(address)))
+        ram.poke(address, value)
         self._after_edit()
+        return self._result()
+
+    def set_keys(self, mask):
+        """
+        Set which keys are held (bit 0 up, 1 down, 2 left, 3 right, 4 fire). Not part of the undo history.
+        """
+        mask = int(mask)
+        if not 0 <= mask <= 0xFF:
+            raise ValueError(f"keys must be a byte (0-255), got {mask}")
+        self.keys = mask
+        if self.cpu is not None:
+            self.cpu.ram.keys = mask
         return self._result()
 
     # --- State -----------------------------------------------------------------
@@ -237,12 +255,15 @@ class Session:
             cycles = self.cpu.cycles
             ram = bytes(self.cpu.ram.memory)
             output_text = "".join(self.cpu.output)
+            screen = bytes(value & 0xFF for value in self.cpu.ram.screen)
         else:
+            usable = min(self.ram_size, DEVICE_BASE)
             registers = [0] * len(Registers.NAMES)
-            registers[Registers.SP] = self.ram_size - 1
+            registers[Registers.SP] = usable - 1
             cycles = 0
-            ram = bytes(self.ram_size)
+            ram = bytes(usable)
             output_text = ""
+            screen = bytes(SCREEN_END - SCREEN_BASE)
 
         current_line, next_instruction, preview = None, None, None
         if self.program is not None and self.status in ("ready", "paused", "break"):
@@ -286,8 +307,10 @@ class Session:
             "preview": preview,
             "breakpoints": self._active_breakpoints(),
             "program": program,
+            "screen": base64.b64encode(screen).decode("ascii"),
+            "keys": self.keys,
             "memory": {
-                "size": self.ram_size,
+                "size": len(ram),
                 "ram": base64.b64encode(ram).decode("ascii"),
                 "return_cells": sorted(a for a in self.return_cells if a >= sp),
                 "last_writes": self.last_ram_writes,
@@ -301,12 +324,15 @@ class Session:
 
     # --- Helpers ---------------------------------------------------------------
 
-    def _result(self, stopped=False, clear_trace=False, rewound=False):
+    def _result(self, stopped=False, clear_trace=False, rewound=False, frame=False):
         return {"state": self.state(), "trace": self._flush_trace(), "stopped": stopped,
-                "clear_trace": clear_trace, "rewound": rewound}
+                "clear_trace": clear_trace, "rewound": rewound, "frame": frame}
 
-    def _quiet(self, stopped):
-        return {"stopped": stopped, "status": self.status}
+    def _quiet(self, stopped, frame=False):
+        result = {"stopped": stopped, "status": self.status}
+        if frame:
+            result["frame"] = True
+        return result
 
     def _can_run(self):
         return self.cpu is not None and self.status not in ("halted", "error")
@@ -369,7 +395,7 @@ class Session:
             if kind == "register":
                 self.cpu.registers.registers[where] = old
             else:
-                self.cpu.ram.memory[where] = old
+                self.cpu.ram.poke(where, old)
 
     def _after_undo(self):
         cycles = self.cpu.cycles

@@ -38,6 +38,7 @@ jobs:
 
       - name: Run examples with the command-line runner
         run: |
+          # Interactive examples run frame after frame and stop at the step limit (exit code 3)
           for program in examples/*.asm; do
-            python -m src run "$program"
+            python -m src run "$program" --max-steps 200000 || [ $? -eq 3 ]
           done

@@ -10,6 +10,8 @@ let maxSpeed = false;
 let owed = 0;           // fractional instructions carried between ticks
 let lastTick = 0;
 let lastPost = 0;
+let nextFrameAt = 0;    // when a program's next `frame` may start, at full speed
+const FRAME_MS = 1000 / 30;
 let timer = null;
 
 const post = (message) => self.postMessage(message);
@@ -52,6 +54,7 @@ function handle({ type, args = {} }) {
       running = true;
       owed = 0;
       lastTick = performance.now();
+      nextFrameAt = lastTick;
       schedule(0);
       return;
     case "rate":
@@ -62,6 +65,7 @@ function handle({ type, args = {} }) {
       send("state");
       return;
     case "set_breakpoints":
+    case "set_keys":
       send(type, args);
       return;
     default: // load, step, reset
@@ -103,16 +107,22 @@ function tick() {
   }
   lastTick = now;
 
+  let waitForFrame = 0;
   if (steps > 0) {
     // At full speed, update the page at most ~60 times per second. Runs in between are "quiet":
     // Python skips building the state, and keeps their trace for the next update.
+    // At full speed a program's `frame` instruction also paces it to 30 frames per second.
     const update = !maxSpeed || now - lastPost > 16;
-    const outcome = call({ command: "run", max_steps: steps, quiet: !update });
+    const outcome = call({ command: "run", max_steps: steps, quiet: !update, stop_at_frame: maxSpeed });
     if (outcome.stopped) running = false;
-    if (update || outcome.stopped) {
+    if (update || outcome.stopped || outcome.frame) {
       post({ type: "result", running, ...(update ? outcome : call({ command: "state" })) });
       lastPost = now;
     }
+    if (outcome.frame) {
+      nextFrameAt = Math.max(nextFrameAt + FRAME_MS, now);
+      waitForFrame = Math.max(0, nextFrameAt - performance.now());
+    }
   }
-  if (running) schedule(maxSpeed ? 0 : 16);
+  if (running) schedule(maxSpeed ? waitForFrame : 16);
 }

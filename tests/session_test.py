@@ -128,13 +128,14 @@ def test_ram_size_choice():
     assert reply["error"].startswith("RAM size must be one of")
 
 
-def test_full_64_kb_ram():
-    state = loaded("mvi, A, 7\nst, A, 0xFFFE\nhlt", ram_size=65536).run()["state"]
-    assert ram_of(state)[0xFFFE] == 7
+def test_64_kb_ram_ends_below_the_devices():
+    state = loaded("mvi, A, 7\nst, A, 0xEFFE\nhlt", ram_size=65536).run()["state"]
+    assert state["memory"]["size"] == 0xF000 and state["registers"][14] == 0xEFFF
+    assert ram_of(state)[0xEFFE] == 7
     assert state["memory"]["last_writes"] == []  # hlt wrote nothing
-    session = loaded("mvi, A, 7\nst, A, 0xFFFE\nhlt", ram_size=65536)
+    session = loaded("mvi, A, 7\nst, A, 0xEFFE\nhlt", ram_size=65536)
     session.step()
-    assert session.step()["state"]["memory"]["last_writes"] == [0xFFFE]
+    assert session.step()["state"]["memory"]["last_writes"] == [0xEFFE]
 
 
 def test_last_ram_writes_follow_each_step():
