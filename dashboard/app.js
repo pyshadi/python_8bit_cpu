@@ -367,7 +367,7 @@ function renderSource() {
 }
 
 function renderMarks() {
-  const current = state && !running ? state.current_line : null;
+  const current = state ? state.current_line : null;
   const errorLine = state && state.status === "error" && state.error ? state.error.line : null;
   for (const row of el.gutter.children) {
     const n = Number(row.dataset.line);
@@ -458,7 +458,7 @@ function focusEditInput() {
 
 function renderRegisters() {
   const registers = state ? state.registers : Array(16).fill(0);
-  const written = new Set(state && !running ? state.written : []);
+  const written = new Set(state ? state.written : []);
   const editable = canEdit();
   const valueHtml = (name, value, width) => {
     if (editing && editing.kind === "reg" && editing.name === name) return editInput(`New value for ${name}`, width);
@@ -747,7 +747,8 @@ function drawDatapath(model, next, registers) {
 }
 
 function renderDataPath() {
-  const active = !!(state && state.next && state.preview && !state.preview.error && !running);
+  // Stays live while running: every screen update shows the instruction the machine is about to execute.
+  const active = !!(state && state.next && state.preview && !state.preview.error);
   const model = active ? datapathModel(state.next, state.preview, state.registers) : null;
   el.datapath.innerHTML = drawDatapath(model, active ? state.next : null, state ? state.registers : null);
   let summary = "Data path: no instruction to show";
@@ -759,10 +760,10 @@ function renderDataPath() {
   }
   el.datapath.setAttribute("aria-label", summary);
 
-  if (!state || !state.next || running) el.pathMeta.textContent = running ? "running" : "";
+  if (!state || !state.next) el.pathMeta.textContent = "";
   else if (state.preview && state.preview.error) el.pathMeta.textContent = `next stops: ${state.preview.error.split(":")[0]}`;
   else el.pathMeta.textContent = state.next.text;
-  el.pathMeta.classList.toggle("bad", !!(state && state.preview && state.preview.error && !running));
+  el.pathMeta.classList.toggle("bad", !!(state && state.preview && state.preview.error));
 }
 
 // ---------- Memory ----------
@@ -772,7 +773,7 @@ function memoryMarks() {
   return {
     size, sp,
     returns: new Set(state ? state.memory.return_cells : []),
-    writes: new Set(state && !running ? state.memory.last_writes : []),
+    writes: new Set(state ? state.memory.last_writes : []),
   };
 }
 
@@ -1024,7 +1025,7 @@ function renderTrace() {
       `<td class="b">${e.bytes.map((b) => hex(b, 2)).join(" ")}</td><td class="i">${escapeHtml(e.text)}</td>` +
       `<td class="fx">${effectHtml(e.effect)}</td></tr>`;
   });
-  if (traceView === "all" && state && state.next && !running) {
+  if (traceView === "all" && state && state.next) {
     const n = state.next;
     rows.push(`<tr class="next"><td class="c">next</td><td class="a">${hex(n.address, 4)}</td>` +
       `<td class="b">${n.bytes.map((b) => hex(b, 2)).join(" ")}</td><td class="i">${escapeHtml(n.text)}</td>` +
