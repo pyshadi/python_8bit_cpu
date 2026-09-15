@@ -35,3 +35,9 @@ jobs:
 
       - name: Run example program
         run: python main.py
+
+      - name: Run examples with the command-line runner
+        run: |
+          for program in examples/*.asm; do
+            python -m src run "$program"
+          done
