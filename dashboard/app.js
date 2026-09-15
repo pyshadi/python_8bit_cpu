@@ -432,8 +432,12 @@ function render() {
 function renderOutput() {
   const output = state && state.output ? state.output : { text: "", truncated: false };
   if (el.output.textContent !== output.text) {
+    const grew = output.text.length > el.output.textContent.length;
     el.output.textContent = output.text;
     el.output.scrollTop = el.output.scrollHeight;
+    const tab = $("tab-output");
+    if (!output.text) tab.classList.remove("unseen");
+    else if (grew && tab.getAttribute("aria-selected") !== "true") tab.classList.add("unseen");
   }
   const lines = output.text ? output.text.split("\n").length - (output.text.endsWith("\n") ? 1 : 0) : 0;
   el.outputMeta.textContent = output.text
@@ -1295,14 +1299,20 @@ function wireTabs(tabs, onChange) {
   }
 }
 wireTabs([["tab-ram", "pane-ram"], ["tab-rom", "pane-rom"]]);
-const execTabs = [["tab-path", "pane-path"], ["tab-trace", "pane-trace"]];
+const execTabs = [["tab-path", "pane-path"], ["tab-trace", "pane-trace"], ["tab-output", "pane-output"]];
 function execTabChanged(tab) {
   const trace = tab === "tab-trace";
+  const output = tab === "tab-output";
   el.traceFilters.hidden = !trace;
   el.traceMeta.hidden = !trace;
-  el.pathMeta.hidden = trace;
+  el.outputMeta.hidden = !output;
+  el.pathMeta.hidden = tab !== "tab-path";
   store.set("execTab", tab);
   if (trace) el.traceScroll.scrollTop = el.traceScroll.scrollHeight;
+  if (output) {
+    $("tab-output").classList.remove("unseen");
+    el.output.scrollTop = el.output.scrollHeight;
+  }
 }
 wireTabs(execTabs, execTabChanged);
 
@@ -1363,7 +1373,7 @@ async function start() {
   ram = new Uint8Array(Number(el.ramSize.value));
   clockChanged();
   const execTab = store.get("execTab", "tab-path");
-  if (execTab === "tab-trace") $("tab-trace").click();
+  if (execTab !== "tab-path" && execTabs.some(([tab]) => tab === execTab)) $(execTab).click();
   else execTabChanged("tab-path");
 
   programs = store.get("programs", null);
