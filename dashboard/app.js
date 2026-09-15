@@ -554,16 +554,18 @@ function drawDatapath(model, next, registers) {
   });
 
   // --- A bus ---
+  // Only drawn when the instruction reads a register onto it, so a register that is only written
+  // never appears to feed the ALU.
   const aLive = !!(model && model.a);
-  const aSlot = model && model.a && model.a.kind === "REG" ? slotIndex(model.a.name) : 0;
-  wire(`M164 ${slotMid(aSlot)} H330 V286`, aLive);
-  text(338, 262, cls("lbl", aLive), "A Bus");
-  if (aLive) text(338, 278, "lv", `${model.a.name}=${value(model.a.value, model.a.width)}`);
+  if (aLive) {
+    wire(`M164 ${slotMid(slotIndex(model.a.name))} H330 V286`, true);
+    text(338, 262, "lbl live", "A Bus");
+    text(338, 278, "lv", `${model.a.name}=${value(model.a.value, model.a.width)}`);
+  }
 
   // --- MUX selecting the B bus: from a register, the decoder (immediate) or RAM ---
   const bKind = model && model.b ? model.b.kind : null;
-  const regSlot = bKind === "REG" ? slotIndex(model.b.name) : 0;
-  wire(`M164 ${slotMid(regSlot)} H206 V156 H488 V186`, bKind === "REG");
+  if (bKind === "REG") wire(`M164 ${slotMid(slotIndex(model.b.name))} H206 V156 H488 V186`, true);
   wire("M515 60 V186", bKind === "IMM");
 
   const ramActive = bKind === "RAM" || ramWrite;
