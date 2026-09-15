@@ -20,23 +20,24 @@ def fibonacci_cpu(ram_size=1024):
 
 def test_step_records_match_expected_trace():
     cpu, labels = fibonacci_cpu()
-    for _ in range(52):
+    for _ in range(57):
         cpu.step()
-    records = [cpu.step() for _ in range(8)]
+    records = [cpu.step() for _ in range(9)]
 
     expected = [
-        # cycle, address, text, register writes, RAM writes, next address, jumped
-        (53, 0x001B, "mov, B, A", {B: (0x08, 0x0D)}, {}, 0x001E, False),
-        (54, 0x001E, "mov, A, E", {A: (0x0D, 0x08)}, {}, 0x0021, False),
-        (55, 0x0021, "ret", {SP: (0x3F7, 0x3F9)}, {}, 0x000E, True),
-        (56, 0x000E, "dec, C", {C: (0x05, 0x04), F: (0x00, 0x00)}, {}, 0x0010, False),
-        (57, 0x0010, "jnz, C, loop", {}, {}, 0x0009, True),
-        (58, 0x0009, "push, B", {SP: (0x3F9, 0x3F8)}, {0x3F8: (0x00, 0x0D)}, 0x000B, False),
-        (59, 0x000B, "call, next", {SP: (0x3F8, 0x3F6)}, {0x3F6: (0x00, 0x0E), 0x3F7: (0x0E, 0x00)}, 0x0015, True),
-        (60, 0x0015, "mov, E, B", {E: (0x08, 0x0D)}, {}, 0x0018, False),
+        # cycle, address, text, register writes, RAM writes, next address, jumped, printed
+        (58, 0x001B, "mov, B, A", {B: (0x08, 0x0D)}, {}, 0x001E, False, ""),
+        (59, 0x001E, "mov, A, E", {A: (0x0D, 0x08)}, {}, 0x0021, False, ""),
+        (60, 0x0021, "out, E", {}, {}, 0x0023, False, "8\n"),
+        (61, 0x0023, "ret", {SP: (0x3F7, 0x3F9)}, {}, 0x000E, True, ""),
+        (62, 0x000E, "dec, C", {C: (0x05, 0x04), F: (0x00, 0x00)}, {}, 0x0010, False, ""),
+        (63, 0x0010, "jnz, C, loop", {}, {}, 0x0009, True, ""),
+        (64, 0x0009, "push, B", {SP: (0x3F9, 0x3F8)}, {0x3F8: (0x00, 0x0D)}, 0x000B, False, ""),
+        (65, 0x000B, "call, next", {SP: (0x3F8, 0x3F6)}, {0x3F6: (0x00, 0x0E), 0x3F7: (0x0E, 0x00)}, 0x0015, True, ""),
+        (66, 0x0015, "mov, E, B", {E: (0x08, 0x0D)}, {}, 0x0018, False, ""),
     ]
     actual = [(r.cycle, r.address, r.instruction.text(labels), r.register_writes, r.ram_writes,
-               r.next_address, r.jumped) for r in records]
+               r.next_address, r.jumped, r.output) for r in records]
     assert actual == expected
     assert not any(r.halted for r in records)
 
@@ -52,7 +53,7 @@ def test_last_step_reports_halt():
     records = []
     result = cpu.run_until(on_step=records.append)
     assert result.reason == StopReason.HALTED
-    assert result.steps == len(records) == cpu.cycles == 94
+    assert result.steps == len(records) == cpu.cycles == 104
     assert records[-1].instruction.mnemonic == "hlt" and records[-1].halted
     assert [cpu.ram.read(a) for a in range(0x3F5, 0x3FF)] == [55, 34, 21, 13, 8, 5, 3, 2, 1, 1]
 
@@ -74,8 +75,8 @@ def test_breakpoints_stop_before_the_instruction_and_resume():
     assert cpu.registers.read(A) == 0  # the add has not run yet
 
     second = cpu.run_until()  # continues past the breakpoint it is sitting on
-    assert (second.reason, second.steps) == (StopReason.BREAKPOINT, 9)
-    assert cpu.cycles == 15
+    assert (second.reason, second.steps) == (StopReason.BREAKPOINT, 10)
+    assert cpu.cycles == 16
 
 
 def test_step_limit():

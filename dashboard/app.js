@@ -196,7 +196,8 @@ async function openProgram(ref) {
   } else {
     let text;
     try {
-      const response = await fetch(`../examples/${ref.name}`);
+      // Revalidate so an updated example never comes from a stale browser cache
+      const response = await fetch(`../examples/${ref.name}`, { cache: "no-cache" });
       if (!response.ok) throw new Error(String(response.status));
       text = await response.text();
     } catch (e) {
@@ -311,7 +312,7 @@ async function buildExamplesGallery(names) {
   const cards = await Promise.all(names.map(async (name) => {
     let description = "";
     try {
-      const firstLine = (await (await fetch(`../examples/${name}`)).text()).split("\n")[0];
+      const firstLine = (await (await fetch(`../examples/${name}`, { cache: "no-cache" })).text()).split("\n")[0];
       if (firstLine.startsWith(";")) description = firstLine.slice(1).replace(/^[^:]*:\s*/, "").trim();
     } catch (e) { /* show the card without a description */ }
     description = description ? description.charAt(0).toUpperCase() + description.slice(1) + "." : "";

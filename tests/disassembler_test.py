@@ -63,7 +63,7 @@ def test_source_map():
     assert program.labels == {"loop": 0x09, "next": 0x15}
     assert program.line_addresses == {
         2: 0x00, 3: 0x03, 4: 0x06, 5: 0x09, 6: 0x0B, 7: 0x0E, 8: 0x10, 9: 0x14,
-        11: 0x15, 12: 0x18, 13: 0x1B, 14: 0x1E, 15: 0x21,
+        11: 0x15, 12: 0x18, 13: 0x1B, 14: 0x1E, 15: 0x21, 16: 0x23,
     }
     assert program.address_lines[0x18] == 12
     assert program.bytecode == Assembler.assemble(FIBONACCI)

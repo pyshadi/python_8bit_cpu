@@ -23,12 +23,12 @@ EXPECTED = {
 }
 
 
-# What each example prints with out/outc ("" for examples that print nothing).
+# What each example prints with out/outc. Every example prints its result.
 EXPECTED_OUTPUT = {
     "bitcount.asm": "5\n",
     "countdown.asm": "".join(f"{n}\n" for n in range(10, 0, -1)),
     "factorial.asm": "120\n",
-    "fibonacci.asm": "",
+    "fibonacci.asm": "1\n1\n2\n3\n5\n8\n13\n21\n34\n55\n",
     "gcd.asm": "6\n",
     "hello.asm": "HELLO\n1\n2\n3\n",
     "multiply.asm": "42\n",
