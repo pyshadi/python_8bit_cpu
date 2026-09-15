@@ -200,9 +200,12 @@ function createProgram(name, source, programBreakpoints = [], extra = {}) {
 
 function fillProgramList() {
   const mine = programs.map((p) => `<option value="mine:${p.id}">${escapeHtml(p.name)}</option>`).join("");
-  const examples = exampleNames.map((n) => `<option value="example:${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+  const options = (names) => names.map((n) => `<option value="example:${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+  const cExamples = options(exampleNames.filter((n) => /\.c$/i.test(n)));
+  const asmExamples = options(exampleNames.filter((n) => !/\.c$/i.test(n)));
   el.program.innerHTML = (mine ? `<optgroup label="My programs">${mine}</optgroup>` : "") +
-    (examples ? `<optgroup label="Examples">${examples}</optgroup>` : "");
+    (cExamples ? `<optgroup label="C examples">${cExamples}</optgroup>` : "") +
+    (asmExamples ? `<optgroup label="Assembly examples">${asmExamples}</optgroup>` : "");
   el.program.value = current.kind === "mine" ? `mine:${current.id}` : `example:${current.name}`;
   el.program.disabled = !el.program.options.length;
   const program = currentProgram();

@@ -285,10 +285,16 @@ def test_larger_ram_allows_more_variables():
 # --- Examples and the session command ---------------------------------------------------
 
 EXPECTED_OUTPUT = {
+    "bitcount.c": numbers(5, 8, 0),
+    "countdown.c": numbers(10, 9, 8, 7, 6, 5, 4, 3, 2, 1) + "LIFTOFF\n",
+    "factorial.c": numbers(1, 2, 6, 24, 120),
     "fib.c": numbers(1, 1, 2, 3, 5, 8, 13, 21, 34, 55),
+    "gcd.c": numbers(6, 15, 1),
+    "hello.c": "HELLO FROM C\n" + numbers(1, 2, 3),
     "sieve.c": numbers(2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97),
+    "stripes.c": "",
 }
-INTERACTIVE = {"bounce.c"}
+INTERACTIVE = {"bounce.c", "sketch.c"}
 
 
 def test_every_c_example_is_checked():
@@ -298,6 +304,25 @@ def test_every_c_example_is_checked():
 @pytest.mark.parametrize("name", sorted(EXPECTED_OUTPUT))
 def test_c_example_output(name):
     assert run((EXAMPLES / name).read_text()) == EXPECTED_OUTPUT[name]
+
+
+def test_stripes_example_draws_the_stripes():
+    cpu = machine((EXAMPLES / "stripes.c").read_text())
+    assert cpu.run_until(max_steps=200_000).reason == StopReason.HALTED
+    assert [cpu.ram.screen[i] for i in (0, 1, 3, 33, 31 * 32 + 31)] == [0, 1, 3, 2, 2]
+
+
+def test_sketch_example_draws_with_the_keys_and_wipes_on_fire():
+    cpu = machine((EXAMPLES / "sketch.c").read_text())
+    cpu.run_until(max_steps=20_000, stop_at_frame=True)
+    centre = 16 * 32 + 16
+    assert cpu.ram.screen[centre] == 3
+    cpu.ram.keys = KEY_LEFT
+    cpu.run_until(max_steps=20_000, stop_at_frame=True)
+    assert cpu.ram.screen[centre] == 3 and cpu.ram.screen[centre - 1] == 3
+    cpu.ram.keys = KEY_FIRE
+    cpu.run_until(max_steps=20_000, stop_at_frame=True)
+    assert cpu.ram.screen[centre] == 0 and cpu.ram.screen[centre - 1] == 3
 
 
 def test_bounce_example_moves_the_ball_and_keeps_a_trail_on_fire():
