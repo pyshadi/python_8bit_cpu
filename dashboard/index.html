@@ -66,7 +66,7 @@
 
   /* Console */
   .console { background: var(--chassis); border: 1px solid var(--line); border-radius: 6px; padding: 10px; display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 10px; align-items: start; }
-  .side { display: grid; gap: 10px; align-content: start; min-width: 0; }
+  .side, .col { display: grid; gap: 10px; align-content: start; min-width: 0; }
   @media (min-width: 1500px) {
     .console { grid-template-columns: minmax(0, 1fr) 420px 420px; }
     .side { display: contents; }
@@ -170,6 +170,54 @@
   .tape tr.next td { background: var(--brass-soft); }
   .tape tr.next td.c { color: var(--brass); }
   .empty-trace { padding: 14px 12px; color: var(--ink-3); font-size: 13px; }
+
+  /* Data path */
+  .datapath { display: block; width: 100%; max-width: 760px; height: auto; margin-inline: auto; padding: 10px 12px 12px; }
+  .datapath .box { fill: var(--raised); stroke: var(--ink-3); stroke-width: 1.5; }
+  .datapath .box.act { stroke: var(--brass); stroke-width: 2; }
+  .datapath .box.read { stroke: var(--verdigris); stroke-width: 2; }
+  .datapath .bl { font-family: var(--f-label); font-weight: 800; font-size: 15px; letter-spacing: 0.08em; fill: var(--ink); }
+  .datapath .bl.big { font-size: 26px; letter-spacing: 0.06em; }
+  .datapath .bl.dim { fill: var(--ink-3); }
+  .datapath .bv { font-family: var(--f-mono); font-stretch: 87.5%; font-size: 11px; fill: var(--ink-2); }
+  .datapath .bv.hot { fill: var(--brass); }
+  .datapath .en { font-family: var(--f-ui); font-size: 10px; font-weight: 600; fill: var(--ink-3); }
+  .datapath .en.live { fill: var(--brass); }
+  .datapath .mux-in { font-family: var(--f-mono); font-stretch: 87.5%; font-size: 8.5px; fill: var(--ink-3); text-anchor: middle; }
+  .datapath .mux-in.live { fill: var(--brass); font-weight: 600; }
+  .datapath .lbl { font-family: var(--f-label); font-weight: 600; font-size: 14px; letter-spacing: 0.04em; fill: var(--ink-2); }
+  .datapath .lbl.live { fill: var(--brass); }
+  .datapath .lv { font-family: var(--f-mono); font-stretch: 87.5%; font-size: 11px; fill: var(--brass); }
+  .datapath .wire { fill: none; stroke: var(--ink-3); stroke-width: 2; stroke-linejoin: round; opacity: 0.55; }
+  .datapath .wire.bus { stroke-width: 3.5; }
+  .datapath .wire.ctl { stroke-dasharray: 3 4; stroke-width: 1.5; }
+  .datapath .wire.live { stroke: var(--brass); opacity: 1; }
+  .datapath .wire.live.flow { stroke-dasharray: 7 5; animation: flow 1.1s linear infinite; }
+  .datapath .arrow { fill: var(--ink-3); opacity: 0.55; }
+  .datapath .arrow.live { fill: var(--brass); opacity: 1; }
+  .datapath .lamp-dot { fill: var(--lamp-off); }
+  .datapath .lamp-dot.on { fill: var(--brass); }
+  .datapath .lamp-letter { font-family: var(--f-label); font-weight: 800; font-size: 10px; fill: var(--ink-3); text-anchor: middle; }
+  @keyframes flow { to { stroke-dashoffset: -24; } }
+  @media (prefers-reduced-motion: reduce) { .datapath .wire.live.flow { animation: none; } }
+  .path-meta { max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .path-meta.bad { color: var(--signal); }
+
+  /* Editing values */
+  .reg .hex.editable, .flag.editable { cursor: pointer; }
+  .reg .hex.editable:hover { color: var(--brass); }
+  .flag.editable:hover b { color: var(--brass); }
+  input.edit { width: 100%; min-width: 0; margin: 0; padding: 0 3px; background: var(--ground); color: var(--ink); border: 1px solid var(--brass); border-radius: 2px; font-family: var(--f-mono); font-stretch: 87.5%; }
+  input.edit[aria-invalid="true"] { border-color: var(--signal); }
+  .reg input.edit { font-size: 16px; height: 22px; }
+  .hexrow .editing { padding: 0; }
+  .hexrow input.edit { font-size: 11px; height: 20px; text-align: center; padding: 0; }
+  #ramDump.editable span[data-address]:hover { box-shadow: inset 0 0 0 1px var(--ink-3); }
+
+  /* Rewind from the trace */
+  .tape tr.rw { cursor: pointer; }
+  .tape tr.rw:hover td { background: var(--raised); }
+  .tape tr.rw:hover td.c { color: var(--brass); }
 
   /* Memory */
   .subtabs, .segmented { display: flex; gap: 2px; }
@@ -283,6 +331,7 @@
         <span class="sep"></span>
         <div class="keys">
           <button class="key" type="button" id="k-reset" title="Reset (Shift+F5)" aria-keyshortcuts="Shift+F5" disabled>Reset</button>
+          <button class="key" type="button" id="k-back" title="Back (Shift+F10)" aria-keyshortcuts="Shift+F10" disabled>Back</button>
           <button class="key primary" type="button" id="k-step" title="Step (F10)" aria-keyshortcuts="F10" disabled>Step</button>
           <button class="key" type="button" id="k-run" title="Run / pause (F5)" aria-keyshortcuts="F5" disabled>Run</button>
         </div>
@@ -304,6 +353,7 @@
         </div>
       </div>
 
+      <div class="col">
       <div class="module">
         <div class="module-head"><span class="engrave">Source</span><span class="meta mono" id="editorMeta"></span></div>
         <div class="editor-body">
@@ -316,11 +366,22 @@
         <div id="editorStatus" role="status">Loading Python in your browser…</div>
       </div>
 
+      <div class="module">
+        <div class="module-head"><span class="engrave">Data path</span><span class="meta mono path-meta" id="pathMeta"></span></div>
+        <svg id="datapath" class="datapath" viewBox="0 0 648 424" role="img" aria-label="Data path of the next instruction"></svg>
+      </div>
+      </div>
+
       <div class="side">
+        <div class="col">
         <div class="module">
           <div class="module-head"><span class="engrave">Registers</span></div>
           <div class="regs" id="regs"></div>
         </div>
+
+        </div>
+
+        <div class="col">
 
         <div class="module">
           <div class="module-head">
@@ -343,6 +404,7 @@
           <div class="mem-body" id="pane-rom" role="tabpanel" aria-labelledby="tab-rom" hidden>
             <div class="hexdump" id="romDump"></div>
           </div>
+        </div>
         </div>
       </div>
 
@@ -399,12 +461,16 @@
                 <tr><td>Program</td><td></td><td class="soft">Loads an example program into Source. Editing it switches to “My program”.</td></tr>
                 <tr><td>RAM</td><td></td><td class="soft">RAM size: 1 KB, 4 KB or 64 KB (the full 16-bit address space). Changing it reloads the program on a fresh machine.</td></tr>
                 <tr><td>Reset</td><td><kbd>⇧F5</kbd></td><td class="soft">Clears registers and RAM, sets PC to 0000 and SP to the top of RAM. Breakpoints are kept.</td></tr>
+                <tr><td>Back</td><td><kbd>⇧F10</kbd></td><td class="soft">Undoes the last instruction or value edit. Back reaches through the last 1,000 instructions and edits.</td></tr>
                 <tr><td>Step</td><td><kbd>F10</kbd></td><td class="soft">Runs one instruction.</td></tr>
                 <tr><td>Run / Pause</td><td><kbd>F5</kbd></td><td class="soft">Runs at the Clock rate until a breakpoint, <code>hlt</code>, an error, or Pause. Run from a breakpoint continues past it.</td></tr>
                 <tr><td>Breakpoint</td><td><kbd>F9</kbd></td><td class="soft">Adds or removes a breakpoint on the line with the cursor.</td></tr>
                 <tr><td>Assemble</td><td><kbd>⌘↵</kbd></td><td class="soft">Assembles Source now and resets the machine. Also happens automatically shortly after you stop typing.</td></tr>
                 <tr><td>Clock</td><td></td><td class="soft">Run speed from 1 Hz to 10 kHz. At “max” the machine runs as fast as it can and the panels refresh about 60 times per second.</td></tr>
                 <tr><td>Cycle</td><td></td><td class="soft">Instructions executed since the last reset.</td></tr>
+                <tr><td>Rewind</td><td></td><td class="soft">Click a row in Trace to go back to just before that instruction ran. Rows further back than the last 1,000 instructions and edits can't be selected.</td></tr>
+                <tr><td>Edit a register</td><td></td><td class="soft">Click a register's value, type a new one and press Enter (Escape cancels). Values are hex; <code>0b101</code> and <code>0d42</code> enter binary and decimal. Click a flag lamp in F to flip that flag.</td></tr>
+                <tr><td>Edit memory</td><td></td><td class="soft">Double-click a byte in the RAM dump and type a new value. Edits are undone by Back like instructions. Editing clears a runtime error, so a program stopped by, say, a stack underflow can continue once the problem is fixed.</td></tr>
               </tbody>
             </table>
           </div>
@@ -438,6 +504,7 @@
               <tbody>
                 <tr><td>Source</td><td class="soft">Columns from left: breakpoint, line number, address of the instruction on that line, code. The highlighted line is the next instruction to run.</td></tr>
                 <tr><td>Registers</td><td class="soft">Each 8-bit register shows hex, decimal and eight bit lamps (most significant on the left). PC and SP are 16-bit. F shows the four flags.</td></tr>
+                <tr><td>Data path</td><td class="soft">What the next instruction will do before it runs: the parts of the machine it uses (outlined in brass), the values it reads, and on the lit wires the values it will write, the flags it will set, or where it will jump (“not taken” when a jump won't happen). If the instruction would fail, the panel heading says why.</td></tr>
                 <tr><td>Memory: map</td><td class="soft">One square per RAM byte, starting at 0000 in the top left: 64 bytes per row for 1 KB and 4 KB, 256 per row for 64 KB. Dark squares are zero, grey squares hold data, patina squares are the stack in use, brass squares are return addresses pushed by <code>call</code>, and bright squares were written by the last instruction. Click a square to show that address.</td></tr>
                 <tr><td>Memory: dump</td><td class="soft">Eight rows of RAM around SP (outlined in brass). Type an address (<code>0x0100</code>, <code>256</code>) or a label and press Enter to show that area instead; Follow SP returns to the stack. Click a byte to select it.</td></tr>
                 <tr><td>Memory: stack</td><td class="soft">The stack from the top (SP) down: pushed values in decimal, and return addresses as <code>ret 000E (label)</code>.</td></tr>
